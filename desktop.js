@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 13;
+  const APP_VERSION = 14;
 
   const TIME_FONTS = [
     "Press Start 2P",
@@ -900,7 +900,7 @@
   const AUDIO_EXTRAS_KEY = "archive-audio-extras";
   const MUSIC_PLAYLIST_KEY = "archive-music-playlist";
   const MUSIC_PLAYLIST_VER_KEY = "archive-music-playlist-ver";
-  const MUSIC_PLAYLIST_VER = 7;
+  const MUSIC_PLAYLIST_VER = 8;
   const WALLPAPER_KEY = "archive-desktop-wallpaper";
   const PET_MODE_KEY = "archive-desktop-pet-mode";
   const PROFILE_DATA_KEY = "archive-user-profile";
@@ -1572,6 +1572,18 @@
                   src: "assets3/music/meaningful-love-instrumental.mp3",
                   body: "meaningful love (instrumental)\r\n",
                 },
+                "Brainiac Maniac.mp3": {
+                  type: "audio",
+                  name: "Brainiac Maniac.mp3",
+                  src: "assets3/music/brainiac-maniac.mp3",
+                  body: "Plants vs. Zombies — Brainiac Maniac\r\n",
+                },
+                "Graze the Roof.mp3": {
+                  type: "audio",
+                  name: "Graze the Roof.mp3",
+                  src: "assets3/music/graze-the-roof.mp3",
+                  body: "Plants vs. Zombies — Graze the Roof\r\n",
+                },
               },
             },
             "Loud/phonk": {
@@ -1655,6 +1667,18 @@
                   name: "VERITY HARDTEKK (Ultra Slowed).mp3",
                   src: "assets4/music/verity-hardtekk-ultra-slowed.mp3",
                   body: "VERITY HARDTEKK Ultra Slowed\r\n",
+                },
+                "Bad Piggies Theme.mp3": {
+                  type: "audio",
+                  name: "Bad Piggies Theme.mp3",
+                  src: "assets4/music/bad-piggies-theme.mp3",
+                  body: "Bad Piggies — Theme\r\n",
+                },
+                "DEAD WRONG FUNK 2.mp3": {
+                  type: "audio",
+                  name: "DEAD WRONG FUNK 2.mp3",
+                  src: "assets4/music/dead-wrong-funk-2.mp3",
+                  body: "Prey, Emrld, KGJ, Regyn — DEAD WRONG FUNK 2\r\n",
                 },
               },
             },
