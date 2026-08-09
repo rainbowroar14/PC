@@ -1,9 +1,10 @@
 (() => {
-  const APP_VERSION = 16;
+  const APP_VERSION = 17;
 
   const UPDATE_LOG = {
-    16: [
-      "Version badge shows one number; hover for what's new popup",
+    17: [
+      "Double-click a folder opens it again (run.bat, config, files)",
+      "Double-click run.bat still launches the game",
     ],
     15: [
       "Update notes popup on the taskbar version badge",
@@ -2546,15 +2547,6 @@
     return { mode: "none" };
   }
 
-  function folderHasLauncher(folderPath) {
-    return !!(
-      findBatInFolder(folderPath) ||
-      findHtmlInFolder(folderPath) ||
-      inferAppIdFromFolder(folderPath) ||
-      inferStoreGameId(folderPath)
-    );
-  }
-
   function storeConfigBody(gameId, fallback) {
     const saved = readStoreConfigs()[gameId];
     return typeof saved === "string" && saved.trim() ? saved : fallback || "";
@@ -4149,20 +4141,7 @@
           window.clearTimeout(clickTimer);
           clickTimer = window.setTimeout(() => {
             if (clicks >= 2) {
-              if (entry.type === "folder") {
-                if (folderHasLauncher(fullPath)) {
-                  const bat = findBatInFolder(fullPath);
-                  const launcher = bat || {
-                    type: "bat",
-                    name: "run.bat",
-                  };
-                  launcher._folderPath = [...fullPath];
-                  launcher._pathKey = pathKey([...fullPath, launcher.name]);
-                  runBat(launcher);
-                } else {
-                  openFolderWindow(fullPath);
-                }
-              }
+              if (entry.type === "folder") openFolderWindow(fullPath);
               else if (entry.type === "bat") {
                 entry._folderPath = [...pathParts];
                 entry._pathKey = key;
