@@ -227,9 +227,12 @@
     const pid = Cloud()?.getSession?.();
     const social = window.ArchiveSocial;
     if (pid && social) {
-      social.publishAccount(pid, Cloud()?.getUsername?.() || "", readProfileData()).catch(() => {});
+      prepareShareableProfileData(readProfileData())
+        .then((shared) => social.publishAccount(pid, Cloud()?.getUsername?.() || "", shared))
+        .catch(() => social.publishAccount(pid, Cloud()?.getUsername?.() || "", readProfileData()));
     }
     startSocialNotifications();
+    updateProfileChromeIcon();
     Cloud()?.scheduleSave?.();
   }
 
@@ -777,9 +780,132 @@
   const DEFAULT_WALLPAPER = "assets2/desktop-bg.png";
   const BLANK_PROFILE_PIC = "assets/profile-blank.svg";
   const MEMORY_WARN_MB = 700;
+
+  function isGifSrc(src) {
+    if (!src) return false;
+    return /^data:image\/gif/i.test(src) || /\.gif(\?|$)/i.test(src);
+  }
+
+  function isShareableMediaSrc(src) {
+    if (!src || typeof src !== "string") return false;
+    if (src.startsWith("blob:")) return false;
+    return src.startsWith("data:") || /^assets\d?\//.test(src);
+  }
+
+  function avatarSrc(src) {
+    if (!src || src.startsWith("blob:")) return BLANK_PROFILE_PIC;
+    return src;
+  }
+
+  function bindAvatarImg(img, src) {
+    if (!img) return;
+    img.onerror = () => {
+      img.onerror = null;
+      img.src = BLANK_PROFILE_PIC;
+    };
+    img.src = avatarSrc(src);
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function fetchAsDataUrl(src) {
+    const res = await fetch(src);
+    if (!res.ok) throw new Error("fetch failed");
+    return blobToDataUrl(await res.blob());
+  }
+
+  function compressImageDataUrl(dataUrl, maxW = 256, quality = 0.82) {
+    if (isGifSrc(dataUrl)) return Promise.resolve(dataUrl);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth || img.width || maxW;
+        const h = img.naturalHeight || img.height || maxW;
+        let tw = w;
+        let th = h;
+        if (w > maxW) {
+          tw = maxW;
+          th = Math.max(1, Math.round((h * maxW) / w));
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = tw;
+        canvas.height = th;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, tw, th);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  async function mediaToShareableSrc(src, opts = {}) {
+    const { maxWidth = 320, maxBytes = 240000 } = opts;
+    if (!src || typeof src !== "string") return "";
+    if (/^assets\d?\//.test(src)) return src;
+    let dataUrl = src;
+    try {
+      if (!src.startsWith("data:")) dataUrl = await fetchAsDataUrl(src);
+    } catch (_) {
+      return "";
+    }
+    if (isGifSrc(dataUrl)) {
+      return dataUrl.length <= maxBytes * 2 ? dataUrl : dataUrl.slice(0, maxBytes * 2);
+    }
+    let out = await compressImageDataUrl(dataUrl, maxWidth, 0.82);
+    if (out.length > maxBytes) out = await compressImageDataUrl(dataUrl, Math.round(maxWidth * 0.65), 0.68);
+    return out.length <= maxBytes * 1.15 ? out : out.slice(0, maxBytes);
+  }
+
+  async function prepareShareableProfileData(data) {
+    const next = { ...data };
+    if (next.pictureSrc) {
+      next.pictureSrc = await mediaToShareableSrc(next.pictureSrc, { maxWidth: 256, maxBytes: 180000 });
+    }
+    if (Array.isArray(next.stories)) {
+      const stories = [];
+      for (const story of next.stories.slice(0, 3)) {
+        stories.push({
+          ...story,
+          pictureSrc: story?.pictureSrc
+            ? await mediaToShareableSrc(story.pictureSrc, { maxWidth: 480, maxBytes: 280000 })
+            : "",
+        });
+      }
+      next.stories = stories;
+    }
+    return next;
+  }
+
+  function getProfileIconSrc() {
+    const pfp = readProfileData().pictureSrc;
+    return pfp && isShareableMediaSrc(pfp) ? pfp : "assets/profile-icon.svg";
+  }
+
+  function updateProfileChromeIcon() {
+    const icon = getProfileIconSrc();
+    const win = openWindows.get("app:profile");
+    const titleIcon = win?.querySelector(".win95-title-icon");
+    if (titleIcon) titleIcon.src = icon;
+    if (win?._taskBtn) {
+      const btnIcon = win._taskBtn.querySelector("img");
+      if (btnIcon) btnIcon.src = icon;
+    }
+    renderDesktopIcons();
+  }
+
   let closingPair = false;
   let socialNotifUnsub = null;
   let socialNotifTotal = 0;
+  let mailToastTimer = 0;
+  let mailAudio = null;
   let pendingUploadPath = null;
   const appSessions = new Map(); // appId -> { termId, appWinId }
   let storagePollTimer = 0;
@@ -1892,7 +2018,7 @@
     const parent = resolvePath(parentPath)?.node;
     if (!parent || parent.type !== "folder") return null;
     if (!parent.children) parent.children = {};
-    const name = uniqueChildName(parent, baseName, ".bmp");
+    const name = uniqueChildName(parent, baseName, isGifSrc(dataUrl) ? ".gif" : ".bmp");
     const entry = {
       type: "img",
       name,
@@ -2268,7 +2394,11 @@
     const custom = loadBatIcons()[key] || null;
     if (custom) return custom;
     if (key.includes("Pixel Paint")) return "assets/paint-icon.png";
-    if (key.includes("Profile")) return "assets/profile-icon.svg";
+    if (key.includes("Profile")) {
+      const pfp = readProfileData().pictureSrc;
+      if (pfp && isShareableMediaSrc(pfp)) return pfp;
+      return "assets/profile-icon.svg";
+    }
     if (key.includes("Social Media")) return "assets/social-media-icon.svg";
     if (key.includes("Music Player")) return "assets/music-player-icon.svg";
     if (key.includes("Terminal")) return "assets/terminal-icon.svg";
@@ -2401,6 +2531,35 @@
     return sc?.id === "sc_social" || (sc?.kind === "bat" && sc?.label === "Social Media");
   }
 
+  function playMailSound() {
+    try {
+      if (!mailAudio) mailAudio = new Audio("assets/yougotmail.mp3");
+      mailAudio.currentTime = 0;
+      mailAudio.play().catch(() => {});
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function showMailToast(message) {
+    const toast = document.getElementById("mailToast");
+    const body = document.getElementById("mailToastBody");
+    if (!toast || !body) return;
+    body.textContent = message || "You've got mail!";
+    toast.hidden = false;
+    playMailSound();
+    window.clearTimeout(mailToastTimer);
+    mailToastTimer = window.setTimeout(() => {
+      toast.hidden = true;
+    }, 9000);
+  }
+
+  function hideMailToast() {
+    const toast = document.getElementById("mailToast");
+    if (toast) toast.hidden = true;
+    window.clearTimeout(mailToastTimer);
+  }
+
   function updateSocialDesktopBadge() {
     const badge = deskIcons?.querySelector("[data-social-badge]");
     if (!badge) return;
@@ -2418,10 +2577,16 @@
       updateSocialDesktopBadge();
       return;
     }
-    socialNotifUnsub = Social.listenNotifications((info) => {
-      socialNotifTotal = info?.total || 0;
-      updateSocialDesktopBadge();
-    });
+    socialNotifUnsub = Social.listenNotifications(
+      (info) => {
+        socialNotifTotal = info?.total || 0;
+        updateSocialDesktopBadge();
+      },
+      (alert) => {
+        if (!alert?.text) return;
+        showMailToast(alert.text);
+      }
+    );
   }
 
   function shortcutGlyphHTML(sc) {
@@ -3424,7 +3589,9 @@
             ? `Wallpaper — ${resolved.trail.join(" \\ ")}`
             : mode === "pick-profile-photo"
               ? `Profile picture — ${resolved.trail.join(" \\ ")}`
-              : mode === "pick-music"
+              : mode === "pick-chat-media"
+                ? `Send photo — ${resolved.trail.join(" \\ ")}`
+                : mode === "pick-music"
                 ? `Music — ${resolved.trail.join(" \\ ")}`
                 : `Import — ${resolved.trail.join(" \\ ")}`;
     }
@@ -3439,10 +3606,12 @@
         mode === "save-paint"
           ? "Choose a folder, name your drawing, then Save."
           : mode === "pick-wallpaper"
-            ? "Pick an image to use as your desktop background."
+            ? "Pick an image or GIF for your desktop background."
             : mode === "pick-profile-photo"
-              ? "Pick an image for your profile picture."
-              : mode === "pick-music"
+              ? "Pick an image or GIF for your profile picture."
+              : mode === "pick-chat-media"
+                ? "Pick a photo or GIF to send in chat."
+                : mode === "pick-music"
                 ? "Click songs to add to your playlist. Upload MP3s to My Files first."
                 : "Pick a saved image to import into Pixel Paint."
       }</p>
@@ -3483,7 +3652,7 @@
       grid.appendChild(btn);
     }
 
-    if (mode === "import-paint" || mode === "pick-wallpaper" || mode === "pick-profile-photo") {
+    if (mode === "import-paint" || mode === "pick-wallpaper" || mode === "pick-profile-photo" || mode === "pick-chat-media") {
       for (const entry of images) {
         const btn = document.createElement("button");
         btn.type = "button";
@@ -3496,7 +3665,7 @@
           if (mode === "pick-wallpaper") {
             setDesktopWallpaper(entry.src);
             closeFileBrowser();
-          } else if (mode === "pick-profile-photo") {
+          } else if (mode === "pick-profile-photo" || mode === "pick-chat-media") {
             if (fileBrowserState?.onPick) fileBrowserState.onPick(entry.src);
             closeFileBrowser();
           } else {
@@ -3561,8 +3730,20 @@
   function applyDesktopWallpaper() {
     if (!desktop) return;
     const src = getWallpaperSrc();
+    const wpEl = document.getElementById("desktopWallpaper");
     const safe = String(src).replace(/\\/g, "/").replace(/"/g, "%22");
-    desktop.style.background = `#008080 url("${safe}") center / cover no-repeat`;
+    const isGif = isGifSrc(src);
+    if (isGif && wpEl) {
+      wpEl.src = src;
+      wpEl.hidden = false;
+      desktop.style.background = "#008080";
+    } else {
+      if (wpEl) {
+        wpEl.hidden = true;
+        wpEl.removeAttribute("src");
+      }
+      desktop.style.background = `#008080 url("${safe}") center / cover no-repeat`;
+    }
   }
 
   function setDesktopWallpaper(src) {
@@ -3603,8 +3784,11 @@
     const pid = Cloud()?.getSession?.();
     const social = window.ArchiveSocial;
     if (pid && social) {
-      social.publishAccount(pid, Cloud()?.getUsername?.() || "", data).catch(() => {});
+      prepareShareableProfileData(data)
+        .then((shared) => social.publishAccount(pid, Cloud()?.getUsername?.() || "", shared))
+        .catch(() => social.publishAccount(pid, Cloud()?.getUsername?.() || "", data));
     }
+    updateProfileChromeIcon();
     Cloud()?.scheduleSave?.();
   }
 
@@ -3723,12 +3907,13 @@
           openFileBrowser({
             mode: "pick-profile-photo",
             path: ["Photos"],
-            onPick: (src) => {
+            onPick: async (src) => {
               if (!src) return;
               const desc = window.prompt("Story description:", "") || "";
+              const pictureSrc = await mediaToShareableSrc(src, { maxWidth: 480, maxBytes: 280000 });
               draftStories.push({
                 id: `story_${Date.now().toString(36)}`,
-                pictureSrc: src,
+                pictureSrc,
                 description: desc.trim().slice(0, 120),
               });
               renderStoriesEditor();
@@ -3755,14 +3940,18 @@
       openFileBrowser({
         mode: "pick-profile-photo",
         path: ["Photos"],
-        onPick: (src) => {
-          draftPicture = src || "";
+        onPick: async (src) => {
+          if (!src) return;
+          statusEl.textContent = "Processing photo…";
+          draftPicture = await mediaToShareableSrc(src, { maxWidth: 256, maxBytes: 180000 });
           updateAvatar(draftPicture);
+          statusEl.textContent = "";
         },
       });
     });
 
-    wrap.querySelector("[data-profile-save]").addEventListener("click", () => {
+    wrap.querySelector("[data-profile-save]").addEventListener("click", async () => {
+      statusEl.textContent = "Saving…";
       const next = {
         displayName: displayInput.value.trim(),
         pronouns: pronounsInput.value.trim(),
@@ -3770,7 +3959,11 @@
         pictureSrc: draftPicture || "",
         stories: draftStories.slice(0, 3),
       };
-      writeProfileData(next);
+      const shared = await prepareShareableProfileData(next);
+      writeProfileData(shared);
+      draftPicture = shared.pictureSrc || "";
+      draftStories = Array.isArray(shared.stories) ? [...shared.stories] : [];
+      fillForm(shared, shared.pictureSrc);
       statusEl.textContent = "Saved.";
       window.setTimeout(() => {
         statusEl.textContent = "";
@@ -3786,7 +3979,7 @@
     makeWindow({
       id,
       title: "Profile",
-      icon: "assets/profile-icon.svg",
+      icon: getProfileIconSrc(),
       width: 340,
       height: 520,
       left: 140,
@@ -3851,7 +4044,22 @@
           </button>
         </div>
         <div class="social-stories" data-social-stories></div>
+        <div class="social-comments-wrap" data-social-comments-wrap>
+          <p class="social-section-title">Comments</p>
+          <div class="social-comments-list" data-social-comments></div>
+          <form class="social-comment-form" data-social-comment-form>
+            <input type="text" data-social-comment-input maxlength="500" placeholder="Write a comment…" />
+            <button type="submit" class="win95-push">Post</button>
+          </form>
+        </div>
         <button type="button" class="win95-push social-action" data-social-action>Friend</button>
+      </div>
+      <div class="social-story-viewer" data-social-story-viewer hidden>
+        <button type="button" class="social-story-viewer-close" data-story-viewer-close title="Close">×</button>
+        <button type="button" class="social-story-viewer-nav is-prev" data-story-viewer-prev title="Previous">‹</button>
+        <img class="social-story-viewer-img" data-story-viewer-img alt="" />
+        <button type="button" class="social-story-viewer-nav is-next" data-story-viewer-next title="Next">›</button>
+        <p class="social-story-viewer-caption" data-story-viewer-caption></p>
       </div>
       <div class="social-chat" data-social-chat hidden>
         <div class="social-chat-head">
@@ -3860,6 +4068,7 @@
         </div>
         <div class="social-chat-messages" data-social-chat-messages></div>
         <form class="social-chat-form" data-social-chat-form>
+          <button type="button" class="win95-push" data-social-chat-attach title="Send photo or GIF">📎</button>
           <input type="text" data-social-chat-input maxlength="500" placeholder="Type a message…" />
           <button type="submit" class="win95-push">Send</button>
         </form>
@@ -3872,6 +4081,17 @@
     let detailAccount = null;
     let chatFriend = null;
     let chatUnsub = null;
+    let commentsUnsub = null;
+    let storyViewerList = [];
+    let storyViewerIndex = 0;
+    let pendingChatImage = "";
+
+    function stopCommentsListen() {
+      if (commentsUnsub) {
+        commentsUnsub();
+        commentsUnsub = null;
+      }
+    }
 
     function stopChatListen() {
       if (chatUnsub) {
@@ -3880,12 +4100,10 @@
       }
     }
 
-    function avatarSrc(src) {
-      return src || Social()?.blankAvatar?.() || BLANK_PROFILE_PIC;
-    }
-
     function showMain() {
       stopChatListen();
+      stopCommentsListen();
+      closeStoryViewer();
       chatFriend = null;
       detailAccount = null;
       detailEl.hidden = true;
@@ -3902,13 +4120,20 @@
     }
 
     function showChat(friend) {
+      closeStoryViewer();
+      pendingChatImage = "";
       chatFriend = friend;
       mainEl.hidden = true;
       detailEl.hidden = true;
       chatEl.hidden = false;
       Social()?.markChatRead?.(friend.id);
       startSocialNotifications();
-      wrap.querySelector("[data-social-chat-name]").textContent = Social()?.displayLabel(friend) || "Chat";
+      const chatLabel = friend.username
+        ? `${Social()?.displayLabel(friend)} (@${friend.username})`
+        : Social()?.displayLabel(friend) || "Chat";
+      wrap.querySelector("[data-social-chat-name]").textContent = chatLabel;
+      const chatInput = wrap.querySelector("[data-social-chat-input]");
+      if (chatInput) chatInput.placeholder = "Type a message…";
       const msgsEl = wrap.querySelector("[data-social-chat-messages]");
       msgsEl.innerHTML = "";
 
@@ -3920,7 +4145,20 @@
           for (const m of msgs) {
             const row = document.createElement("div");
             row.className = "social-msg" + (m.from === me ? " is-me" : "");
-            row.textContent = m.text || "";
+            if (m.imageSrc) {
+              const im = document.createElement("img");
+              im.className = "social-msg-img";
+              im.src = m.imageSrc;
+              im.alt = m.text || "Shared image";
+              row.appendChild(im);
+            }
+            if (m.text) {
+              const txt = document.createElement("span");
+              txt.className = "social-msg-text";
+              txt.textContent = m.text;
+              row.appendChild(txt);
+            }
+            if (!m.imageSrc && !m.text) row.textContent = "";
             msgsEl.appendChild(row);
           }
           msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -3935,13 +4173,22 @@
       row.className = "social-row";
       const img = document.createElement("img");
       img.className = "social-avatar";
-      img.src = avatarSrc(account.pictureSrc);
+      bindAvatarImg(img, account.pictureSrc);
       img.alt = "";
+      const textWrap = document.createElement("div");
+      textWrap.className = "social-row-text";
       const name = document.createElement("span");
       name.className = "social-row-name";
       name.textContent = Social()?.displayLabel(account) || "User";
+      textWrap.appendChild(name);
+      if (account.username) {
+        const user = document.createElement("span");
+        user.className = "social-row-user";
+        user.textContent = `@${account.username}`;
+        textWrap.appendChild(user);
+      }
       row.appendChild(img);
-      row.appendChild(name);
+      row.appendChild(textWrap);
       if (actionLabel) {
         const act = document.createElement("span");
         act.className = "social-row-action";
@@ -3991,7 +4238,7 @@
       const full = (await Social()?.getAccount?.(acc.id)) || acc;
       detailAccount = full;
       showDetail();
-      wrap.querySelector("[data-social-detail-pic]").src = avatarSrc(full.pictureSrc);
+      bindAvatarImg(wrap.querySelector("[data-social-detail-pic]"), full.pictureSrc);
       wrap.querySelector("[data-social-detail-name]").textContent = Social().displayLabel(full);
       wrap.querySelector("[data-social-detail-user]").textContent = full.username || "";
       const pronEl = wrap.querySelector("[data-social-detail-pronouns]");
@@ -4001,8 +4248,104 @@
       wrap.querySelector("[data-social-detail-desc]").textContent =
         full.description?.trim() || "No description yet.";
       renderDetailStories(full.stories);
+      startCommentsListen(full.id);
       await refreshDetailLikes();
       await refreshDetailAction();
+    }
+
+    function formatSocialTime(ts) {
+      if (!ts) return "";
+      try {
+        return new Date(ts).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function renderCommentsList(comments) {
+      const listEl = wrap.querySelector("[data-social-comments]");
+      const formEl = wrap.querySelector("[data-social-comment-form]");
+      if (!listEl) return;
+      const signedIn = !!Social()?.myId?.();
+      if (formEl) formEl.hidden = !signedIn;
+      listEl.innerHTML = "";
+      const list = Array.isArray(comments) ? comments : [];
+      if (!list.length) {
+        listEl.innerHTML = '<p class="social-empty">No comments yet.</p>';
+        return;
+      }
+      const me = Social()?.myId?.();
+      for (const c of list) {
+        const row = document.createElement("div");
+        row.className = "social-comment";
+        const head = document.createElement("div");
+        head.className = "social-comment-head";
+        const img = document.createElement("img");
+        img.className = "social-comment-avatar";
+        bindAvatarImg(img, c.fromPicture);
+        img.alt = "";
+        const who = document.createElement("span");
+        who.className = "social-comment-who";
+        who.textContent = c.from === me ? "You" : c.fromDisplay || c.fromUsername || "User";
+        const when = document.createElement("span");
+        when.className = "social-comment-when";
+        when.textContent = formatSocialTime(c.ts);
+        head.appendChild(img);
+        head.appendChild(who);
+        head.appendChild(when);
+        const body = document.createElement("p");
+        body.className = "social-comment-text";
+        body.textContent = c.text || "";
+        row.appendChild(head);
+        row.appendChild(body);
+        listEl.appendChild(row);
+      }
+      listEl.scrollTop = listEl.scrollHeight;
+    }
+
+    function startCommentsListen(profileId) {
+      stopCommentsListen();
+      const listEl = wrap.querySelector("[data-social-comments]");
+      if (!listEl || !profileId || !Social()?.listenComments) return;
+      listEl.innerHTML = '<p class="social-hint">Loading comments…</p>';
+      commentsUnsub = Social().listenComments(profileId, renderCommentsList);
+    }
+
+    function closeStoryViewer() {
+      const viewer = wrap.querySelector("[data-social-story-viewer]");
+      if (viewer) viewer.hidden = true;
+      storyViewerList = [];
+      storyViewerIndex = 0;
+    }
+
+    function renderStoryViewer() {
+      const viewer = wrap.querySelector("[data-social-story-viewer]");
+      const img = wrap.querySelector("[data-story-viewer-img]");
+      const caption = wrap.querySelector("[data-story-viewer-caption]");
+      const prevBtn = wrap.querySelector("[data-story-viewer-prev]");
+      const nextBtn = wrap.querySelector("[data-story-viewer-next]");
+      if (!viewer || !img || !storyViewerList.length) return;
+      const story = storyViewerList[storyViewerIndex];
+      if (!story) return;
+      img.src = story.pictureSrc || Social()?.blankAvatar?.() || BLANK_PROFILE_PIC;
+      caption.textContent = story.description || "";
+      const multi = storyViewerList.length > 1;
+      if (prevBtn) prevBtn.hidden = !multi;
+      if (nextBtn) nextBtn.hidden = !multi;
+      viewer.hidden = false;
+    }
+
+    function openStoryViewer(stories, startIndex = 0) {
+      const list = Array.isArray(stories) ? stories.filter((s) => s?.pictureSrc) : [];
+      if (!list.length) return;
+      storyViewerList = list;
+      storyViewerIndex = Math.max(0, Math.min(startIndex, list.length - 1));
+      renderStoryViewer();
     }
 
     function renderDetailStories(stories) {
@@ -4016,11 +4359,14 @@
       title.textContent = "Stories";
       box.appendChild(title);
       for (const story of list) {
-        const card = document.createElement("div");
-        card.className = "social-story-card";
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "social-story-card is-clickable";
         card.innerHTML = `<img alt="" /><p></p>`;
         card.querySelector("img").src = story.pictureSrc || Social()?.blankAvatar?.() || BLANK_PROFILE_PIC;
         card.querySelector("p").textContent = story.description || "";
+        card.title = "Click to view";
+        card.addEventListener("click", () => openStoryViewer(list, list.indexOf(story)));
         box.appendChild(card);
       }
     }
@@ -4140,6 +4486,31 @@
       await refreshDetailLikes();
     });
 
+    wrap.querySelector("[data-social-comment-form]")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!detailAccount || !Social()?.addComment) return;
+      const input = wrap.querySelector("[data-social-comment-input]");
+      const text = input?.value || "";
+      if (!text.trim()) return;
+      await Social().addComment(detailAccount.id, text);
+      if (input) input.value = "";
+    });
+
+    wrap.querySelector("[data-story-viewer-close]")?.addEventListener("click", closeStoryViewer);
+    wrap.querySelector("[data-story-viewer-prev]")?.addEventListener("click", () => {
+      if (!storyViewerList.length) return;
+      storyViewerIndex = (storyViewerIndex - 1 + storyViewerList.length) % storyViewerList.length;
+      renderStoryViewer();
+    });
+    wrap.querySelector("[data-story-viewer-next]")?.addEventListener("click", () => {
+      if (!storyViewerList.length) return;
+      storyViewerIndex = (storyViewerIndex + 1) % storyViewerList.length;
+      renderStoryViewer();
+    });
+    wrap.querySelector("[data-social-story-viewer]")?.addEventListener("click", (e) => {
+      if (e.target === wrap.querySelector("[data-social-story-viewer]")) closeStoryViewer();
+    });
+
     wrap.querySelector("[data-social-action]").addEventListener("click", async () => {
       if (!detailAccount) return;
       const mode = wrap.querySelector("[data-social-action]").dataset.mode;
@@ -4155,14 +4526,32 @@
       }
     });
 
+    wrap.querySelector("[data-social-chat-attach]")?.addEventListener("click", () => {
+      openFileBrowser({
+        mode: "pick-chat-media",
+        path: ["Photos"],
+        onPick: async (src) => {
+          if (!src) return;
+          pendingChatImage = await mediaToShareableSrc(src, { maxWidth: 640, maxBytes: 400000 });
+          const input = wrap.querySelector("[data-social-chat-input]");
+          if (input) {
+            input.placeholder = pendingChatImage ? "Add a caption (optional)…" : "Type a message…";
+            input.focus();
+          }
+        },
+      });
+    });
+
     wrap.querySelector("[data-social-chat-form]").addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!chatFriend) return;
       const input = wrap.querySelector("[data-social-chat-input]");
       const text = input.value;
-      if (!text.trim()) return;
-      await Social().sendMessage(chatFriend.id, text);
+      if (!text.trim() && !pendingChatImage) return;
+      await Social().sendMessage(chatFriend.id, text, { imageSrc: pendingChatImage });
       input.value = "";
+      pendingChatImage = "";
+      input.placeholder = "Type a message…";
     });
 
     makeWindow({
@@ -4177,6 +4566,8 @@
       bodyClass: "social-app-body",
       onClose: () => {
         stopChatListen();
+        stopCommentsListen();
+        closeStoryViewer();
         closeLinkedSession(appId, id);
       },
     });
@@ -4188,8 +4579,8 @@
 
     const pid = Cloud()?.getSession?.();
     if (pid && Social()?.publishAccount) {
-      Social()
-        .publishAccount(pid, Cloud()?.getUsername?.() || "", readProfileData())
+      prepareShareableProfileData(readProfileData())
+        .then((shared) => Social().publishAccount(pid, Cloud()?.getUsername?.() || "", shared))
         .catch((err) => console.warn("publishAccount failed:", err));
     }
     renderExplore();
@@ -4613,7 +5004,7 @@
     const wrap = document.createElement("div");
     wrap.className = "bg-changer";
     wrap.innerHTML = `
-      <p class="bg-changer-hint">Choose an image from My Files for your desktop wallpaper.</p>
+      <p class="bg-changer-hint">Choose an image or GIF from My Files for your desktop wallpaper.</p>
       <div class="bg-changer-preview-wrap">
         <img data-wallpaper-preview alt="Current wallpaper" />
       </div>
@@ -5591,6 +5982,8 @@
   document.getElementById("fileBrowserModal")?.addEventListener("pointerdown", (e) => {
     if (e.target.id === "fileBrowserModal") closeFileBrowser();
   });
+
+  document.getElementById("mailToastClose")?.addEventListener("click", hideMailToast);
 
   document.getElementById("iconPickerModal")?.addEventListener("pointerdown", (e) => {
     if (e.target.id === "iconPickerModal") closeIconPicker();

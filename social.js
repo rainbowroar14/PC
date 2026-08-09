@@ -255,17 +255,20 @@
     });
   }
 
-  async function sendMessage(otherId, text) {
+  async function sendMessage(otherId, text, opts = {}) {
     const fire = db();
     const me = myId();
     const msg = String(text || "").trim();
-    if (!fire || !me || !otherId || !msg) return false;
+    const imageSrc = opts.imageSrc ? String(opts.imageSrc) : "";
+    if (!fire || !me || !otherId || (!msg && !imageSrc)) return false;
     const cid = chatId(me, otherId);
-    await fire.collection("chats").doc(cid).collection("messages").add({
+    const payload = {
       from: me,
       text: msg.slice(0, 500),
       ts: Date.now(),
-    });
+    };
+    if (imageSrc) payload.imageSrc = imageSrc.slice(0, 900000);
+    await fire.collection("chats").doc(cid).collection("messages").add(payload);
     await fire.collection("chats").doc(cid).set({ updatedAt: Date.now() }, { merge: true });
     return true;
   }
@@ -373,14 +376,75 @@
     return true;
   }
 
-  function listenNotifications(onChange) {
+  async function addComment(profileId, text) {
+    const me = myId();
+    const fire = db();
+    const msg = String(text || "").trim();
+    if (!fire || !me || !profileId || !msg) return false;
+    const meAcc = await getAccount(me);
+    await fire
+      .collection("accounts")
+      .doc(profileId)
+      .collection("comments")
+      .add({
+        from: me,
+        fromUsername: meAcc?.username || "",
+        fromDisplay: displayLabel(meAcc),
+        fromPicture: meAcc?.pictureSrc || "",
+        text: msg.slice(0, 500),
+        ts: Date.now(),
+      });
+    return true;
+  }
+
+  async function fetchComments(profileId, limit = 60) {
+    const fire = db();
+    if (!fire || !profileId) return [];
+    const snap = await fire
+      .collection("accounts")
+      .doc(profileId)
+      .collection("comments")
+      .orderBy("ts", "asc")
+      .limitToLast(limit)
+      .get();
+    const list = [];
+    snap.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+    return list;
+  }
+
+  function listenComments(profileId, onChange) {
+    const fire = db();
+    if (!fire || !profileId) return () => {};
+    return fire
+      .collection("accounts")
+      .doc(profileId)
+      .collection("comments")
+      .orderBy("ts", "asc")
+      .limitToLast(60)
+      .onSnapshot(
+        (snap) => {
+          const list = [];
+          snap.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+          onChange(list);
+        },
+        () => onChange([])
+      );
+  }
+
+  function listenNotifications(onChange, onAlert) {
     const fire = db();
     const me = myId();
     if (!fire || !me) return () => {};
     const state = { friendRequests: 0, unreadMessages: 0 };
     const chatUnsubs = new Map();
     const chatUnread = new Map();
+    const prevUnreadByFriend = new Map();
+    const knownAcceptedOutgoing = new Set();
     let friendsUnsub = null;
+    let alertsReady = false;
+    window.setTimeout(() => {
+      alertsReady = true;
+    }, 2000);
 
     function emit() {
       onChange({
@@ -395,6 +459,21 @@
       for (const n of chatUnread.values()) total += n;
       state.unreadMessages = total;
       emit();
+    }
+
+    function trackOutgoingAccepted(snap) {
+      snap.forEach((doc) => {
+        const d = doc.data() || {};
+        if (d.status !== "accepted" || d.requester !== me) return;
+        if (knownAcceptedOutgoing.has(doc.id)) return;
+        knownAcceptedOutgoing.add(doc.id);
+        if (!alertsReady) return;
+        const who = d.toDisplay || d.toUsername || "Someone";
+        onAlert?.({
+          kind: "friend_accept",
+          text: `${who} accepted your friend request!`,
+        });
+      });
     }
 
     const reqUnsub = fire
@@ -438,6 +517,16 @@
             const msg = doc?.data();
             const unread =
               msg && msg.from !== me && (msg.ts || 0) > getChatReadAt(friend.id) ? 1 : 0;
+            const prev = prevUnreadByFriend.get(friend.id) || 0;
+            if (alertsReady && unread > prev && msg?.from !== me) {
+              const who = friend.displayName || friend.username || "Friend";
+              onAlert?.({
+                kind: "message",
+                text: `New message from ${who}`,
+                friendId: friend.id,
+              });
+            }
+            prevUnreadByFriend.set(friend.id, unread);
             chatUnread.set(friend.id, unread);
             recountMessages();
           });
@@ -461,8 +550,13 @@
       fire
         .collection("friendLinks")
         .where("from", "==", me)
-        .where("status", "==", "accepted")
-        .onSnapshot(() => refreshFriendChats(), () => {})
+        .onSnapshot(
+          (snap) => {
+            trackOutgoingAccepted(snap);
+            refreshFriendChats();
+          },
+          () => {}
+        )
     );
     friendLinkUnsubs.push(
       fire
@@ -499,6 +593,9 @@
     getLikeCount,
     hasLiked,
     toggleLike,
+    addComment,
+    fetchComments,
+    listenComments,
     listenNotifications,
     myId,
   };

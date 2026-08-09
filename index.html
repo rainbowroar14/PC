@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Archive of Things</title>
+  <link rel="icon" href="assets/tab-icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="assets/tab-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Bungee&family=Courier+Prime:wght@400;700&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Fira+Code:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Monoton&family=Orbitron:wght@500;700&family=Pixelify+Sans:wght@400;700&family=Press+Start+2P&family=Share+Tech+Mono&family=Silkscreen:wght@400;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&family=VT323&display=swap" rel="stylesheet" />
@@ -110,6 +112,7 @@
 
   <!-- Desktop -->
   <div class="desktop" id="desktop" aria-hidden="true">
+    <img class="desktop-wallpaper" id="desktopWallpaper" alt="" hidden />
     <div class="desktop-icons" id="desktopIcons"></div>
     <div class="window-layer" id="windowLayer"></div>
     <div class="desk-ctx" id="deskCtx" hidden>
@@ -176,7 +179,15 @@
         <div class="icon-picker-body" id="fileBrowserBody"></div>
       </div>
     </div>
-    <input type="file" id="fsUploadInput" hidden multiple accept="image/*,.txt,.html,.htm,.ini,.md,.json,.csv,.xml,.js,.css,audio/*,.mp3,.wav,.ogg,.m4a" />
+    <input type="file" id="fsUploadInput" hidden multiple accept="image/*,.gif,.txt,.html,.htm,.ini,.md,.json,.csv,.xml,.js,.css,audio/*,.mp3,.wav,.ogg,.m4a" />
+    <div class="mail-toast" id="mailToast" hidden>
+      <div class="mail-toast-titlebar">
+        <img src="assets/tab-icon.png" width="16" height="16" alt="" />
+        <span>You've got mail</span>
+        <button type="button" class="win95-ctrl mail-toast-close" id="mailToastClose" title="Close">×</button>
+      </div>
+      <p class="mail-toast-body" id="mailToastBody"></p>
+    </div>
     <div class="taskbar">
       <button type="button" class="start-btn" id="taskStartBtn" aria-haspopup="true" aria-expanded="false">
         <img class="start-btn-icon" src="assets/start-flag.png" width="16" height="16" alt="" />
