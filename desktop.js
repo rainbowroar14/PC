@@ -1,10 +1,10 @@
 (() => {
-  const APP_VERSION = 17;
+  const APP_VERSION = 18;
 
   const UPDATE_LOG = {
-    17: [
-      "Double-click a folder opens it again (run.bat, config, files)",
-      "Double-click run.bat still launches the game",
+    18: [
+      "Jackson folder: new Billie Jean and Man in the Mirror",
+      "Added Thriller, Don't Stop, Rock With You, Smooth Criminal",
     ],
     15: [
       "Update notes popup on the taskbar version badge",
@@ -965,7 +965,7 @@
   const AUDIO_EXTRAS_KEY = "archive-audio-extras";
   const MUSIC_PLAYLIST_KEY = "archive-music-playlist";
   const MUSIC_PLAYLIST_VER_KEY = "archive-music-playlist-ver";
-  const MUSIC_PLAYLIST_VER = 8;
+  const MUSIC_PLAYLIST_VER = 9;
   const WALLPAPER_KEY = "archive-desktop-wallpaper";
   const PET_MODE_KEY = "archive-desktop-pet-mode";
   const PROFILE_DATA_KEY = "archive-user-profile";
@@ -1751,11 +1751,11 @@
               type: "folder",
               name: "Jackson",
               children: {
-                "Billie Jean (remix).mp3": {
+                "Billie Jean.mp3": {
                   type: "audio",
-                  name: "Billie Jean (remix).mp3",
-                  src: "assets4/music/jackson-billie-jean-remix.mp3",
-                  body: "Michael Jackson — Billie Jean remix\r\n",
+                  name: "Billie Jean.mp3",
+                  src: "assets4/music/jackson-billie-jean.mp3",
+                  body: "Michael Jackson — Billie Jean\r\n",
                 },
                 "They Don't Care About Us.mp3": {
                   type: "audio",
@@ -1774,6 +1774,30 @@
                   name: "Beat It.mp3",
                   src: "assets4/music/jackson-beat-it.mp3",
                   body: "Michael Jackson — Beat It\r\n",
+                },
+                "Thriller.mp3": {
+                  type: "audio",
+                  name: "Thriller.mp3",
+                  src: "assets4/music/jackson-thriller.mp3",
+                  body: "Michael Jackson — Thriller\r\n",
+                },
+                "Don't Stop Til You Get Enough.mp3": {
+                  type: "audio",
+                  name: "Don't Stop Til You Get Enough.mp3",
+                  src: "assets4/music/jackson-dont-stop-til-you-get-enough.mp3",
+                  body: "Michael Jackson — Don't Stop Til You Get Enough\r\n",
+                },
+                "Rock With You.mp3": {
+                  type: "audio",
+                  name: "Rock With You.mp3",
+                  src: "assets4/music/jackson-rock-with-you.mp3",
+                  body: "Michael Jackson — Rock With You\r\n",
+                },
+                "Smooth Criminal.mp3": {
+                  type: "audio",
+                  name: "Smooth Criminal.mp3",
+                  src: "assets4/music/jackson-smooth-criminal.mp3",
+                  body: "Michael Jackson — Smooth Criminal\r\n",
                 },
               },
             },
