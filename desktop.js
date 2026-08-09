@@ -1,9 +1,12 @@
 (() => {
-  const APP_VERSION = 15;
+  const APP_VERSION = 16;
 
   const UPDATE_LOG = {
+    16: [
+      "Version badge shows one number; hover for what's new popup",
+    ],
     15: [
-      "Hover the v15 badge in the taskbar for this update list",
+      "Update notes popup on the taskbar version badge",
     ],
     14: [
       "Bad Piggies Theme and DEAD WRONG FUNK 2 in Loud/phonk",
@@ -310,6 +313,29 @@
       li.textContent = text;
       listEl.appendChild(li);
     }
+  }
+
+  function showVersionLog() {
+    const log = document.getElementById("versionLog");
+    const badge = taskbarVersion;
+    if (!log || !badge) return;
+    updateVersionBadge();
+    log.hidden = false;
+    const rect = badge.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.left;
+    let top = rect.top - log.offsetHeight - 6;
+    if (top < margin) top = rect.bottom + 6;
+    const maxLeft = window.innerWidth - log.offsetWidth - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+    log.style.left = `${left}px`;
+    log.style.top = `${top}px`;
+  }
+
+  function hideVersionLog() {
+    const log = document.getElementById("versionLog");
+    if (log) log.hidden = true;
   }
 
   function showLoginScreen() {
@@ -6911,6 +6937,7 @@
 
   document.addEventListener("pointerdown", (e) => {
     if (!e.target.closest("#deskCtx")) hideDeskCtx();
+    if (!e.target.closest("#versionLog") && !e.target.closest("#taskbarVersion")) hideVersionLog();
     if (!e.target.closest("#petCtx") && !e.target.closest(".desktop-pet")) hidePetCtx();
   });
 
@@ -6968,6 +6995,13 @@
   const startPowerItem = document.getElementById("startPowerItem");
   const startPowerSub = document.getElementById("startPowerSub");
   wireStartVolumeControls();
+
+  if (taskbarVersion) {
+    taskbarVersion.addEventListener("mouseenter", showVersionLog);
+    taskbarVersion.addEventListener("mouseleave", hideVersionLog);
+    taskbarVersion.addEventListener("focus", showVersionLog);
+    taskbarVersion.addEventListener("blur", hideVersionLog);
+  }
 
   function showPowerSub() {
     if (!startPowerSub || !startPowerItem) return;

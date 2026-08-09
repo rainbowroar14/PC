@@ -1603,59 +1603,43 @@ body.modal-lock .taskbar {
   white-space: nowrap;
 }
 
-.taskbar-version-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
 .taskbar-version {
   color: #000080;
   font-weight: 700;
   flex-shrink: 0;
-  cursor: help;
+  cursor: default;
   outline: none;
 }
 
-.taskbar-version-wrap:hover .version-log,
-.taskbar-version-wrap:focus-within .version-log {
-  display: block;
+.version-ctx {
+  position: fixed;
+  z-index: 500;
+  min-width: 11rem;
+  max-width: min(18rem, 70vw);
+  padding: 0.35rem 0.5rem 0.45rem;
+  pointer-events: none;
 }
 
-.version-log {
+.version-ctx[hidden] {
   display: none;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
-  z-index: 500;
-  min-width: 12rem;
-  max-width: min(18rem, 70vw);
-  padding: 0.45rem 0.55rem 0.5rem;
-  border-top: 2px solid var(--win-face-light);
-  border-left: 2px solid var(--win-face-light);
-  border-right: 2px solid var(--win-face-darker);
-  border-bottom: 2px solid var(--win-face-darker);
-  background: #ffffe1;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
-  font-family: "MS Sans Serif", Tahoma, sans-serif;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: #000;
-  pointer-events: none;
 }
 
 .version-log-title {
   margin: 0 0 0.35rem;
   font-weight: 700;
   color: #000080;
+  font-size: 0.82rem;
 }
 
 .version-log-list {
   margin: 0;
-  padding-left: 1.1rem;
+  padding-left: 1.15rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .version-log-list li {
-  margin: 0.15rem 0;
+  margin: 0.12rem 0;
 }
 
 .taskbar-computer {
