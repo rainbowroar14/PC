@@ -1,4 +1,6 @@
 (() => {
+  const APP_VERSION = 1;
+
   const TIME_FONTS = [
     "Press Start 2P",
     "VT323",
@@ -59,6 +61,7 @@
   const loginSubmit = document.getElementById("loginSubmit");
   const loginStatus = document.getElementById("loginStatus");
   const taskbarComputer = document.getElementById("taskbarComputer");
+  const taskbarVersion = document.getElementById("taskbarVersion");
   const Cloud = () => window.ArchiveCloud;
   let hoverStyleTimer = 0;
   let hoveringTime = false;
@@ -166,6 +169,7 @@
   }
 
   function updateTaskbarComputer() {
+    if (taskbarVersion) taskbarVersion.textContent = `v${APP_VERSION}`;
     if (!taskbarComputer) return;
     const name = Cloud()?.getUsername?.() || "";
     taskbarComputer.textContent = name ? `${name}'s Computer` : "Computer";
@@ -5485,7 +5489,7 @@
       case "cls":
         return ["__CLEAR__"];
       case "ver":
-        return ["Archive of Things MS-DOS 4.0", "Copyright (c) Archive Corp 1995."];
+        return [`Archive of Things v${APP_VERSION}`, "Copyright (c) Archive Corp 1995."];
       case "date":
         return [new Date().toLocaleDateString()];
       case "time":

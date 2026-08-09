@@ -1,0 +1,15 @@
+---
+description: Bump APP_VERSION in desktop.js on every code change
+alwaysApply: true
+---
+
+# Version bump
+
+This project shows a build number in the taskbar (`vN` left of the computer name) and in Terminal `ver`.
+
+**Every time you edit project code**, increment `APP_VERSION` in `desktop.js` by **1** before finishing.
+
+- Only change the number at the top of `desktop.js`: `const APP_VERSION = N;`
+- Do this once per task/session of changes, not per file
+- If you forget, bump it when you remember before ending the turn
+- Copy updated files to `C:\Users\finle\OneDrive\Documents\GitHub\PC` when syncing to GitHub Desktop (same as other project changes)

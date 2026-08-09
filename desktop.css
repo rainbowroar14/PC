@@ -1526,6 +1526,12 @@ body.modal-lock .taskbar {
   white-space: nowrap;
 }
 
+.taskbar-version {
+  color: #000080;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .taskbar-computer {
   max-width: 11rem;
   overflow: hidden;
