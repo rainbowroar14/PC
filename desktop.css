@@ -1389,6 +1389,16 @@ body.modal-lock .taskbar {
   flex: 1;
 }
 
+.start-item-danger .start-item-label {
+  color: #800000;
+}
+
+.start-item-danger:hover .start-item-label,
+.start-item-danger:focus-visible .start-item-label,
+.start-item-danger.is-hot .start-item-label {
+  color: #fff;
+}
+
 .start-item-arrow {
   margin-left: auto;
   font-size: 0.75rem;

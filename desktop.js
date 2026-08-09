@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 6;
+  const APP_VERSION = 7;
 
   const TIME_FONTS = [
     "Press Start 2P",
@@ -395,12 +395,22 @@
   }
 
   function openFactoryReset() {
-    if (phase !== "boot") return;
+    closeStartMenu();
     factoryResetArmed = false;
     const screen = document.getElementById("factoryResetScreen");
     const btn = document.getElementById("factoryResetConfirm");
     const hint = document.getElementById("factoryResetHint");
+    const sure = screen?.querySelector(".factory-reset-sure");
+    const hasAccount = !!Cloud()?.getSession?.();
     if (!screen) return;
+    if (sure) {
+      sure.textContent = hasAccount ? "DELETES YOUR ACCOUNT" : "ARE YOU SURE";
+    }
+    if (hint) {
+      hint.textContent = hasAccount
+        ? "Account and all data erased. Click again to confirm."
+        : "Click once more to confirm";
+    }
     screen.hidden = false;
     screen.setAttribute("aria-hidden", "false");
     btn?.classList.remove("is-armed");
@@ -422,7 +432,19 @@
     if (btn) btn.textContent = "RESET";
   }
 
-  function runFactoryReset() {
+  async function runFactoryReset() {
+    closeFactoryReset();
+    const cloud = Cloud();
+    const pid = cloud?.getSession?.();
+    if (pid && cloud?.deleteAccount) {
+      try {
+        await cloud.deleteAccount(pid);
+      } catch (err) {
+        console.warn("deleteAccount failed:", err);
+      }
+    } else {
+      cloud?.clearSession?.();
+    }
     try {
       const keys = [];
       for (let i = 0; i < localStorage.length; i += 1) {
@@ -6567,6 +6589,12 @@
     if (signout) {
       e.stopPropagation();
       doLogout();
+      return;
+    }
+    const factoryReset = e.target.closest('[data-start="factory-reset"]');
+    if (factoryReset) {
+      e.stopPropagation();
+      openFactoryReset();
     }
   });
 
@@ -6594,7 +6622,7 @@
 
   document.getElementById("factoryResetBack")?.addEventListener("click", closeFactoryReset);
 
-  document.getElementById("factoryResetConfirm")?.addEventListener("click", () => {
+  document.getElementById("factoryResetConfirm")?.addEventListener("click", async () => {
     const btn = document.getElementById("factoryResetConfirm");
     const hint = document.getElementById("factoryResetHint");
     if (!factoryResetArmed) {
@@ -6604,7 +6632,7 @@
       if (btn) btn.textContent = "CONFIRM";
       return;
     }
-    runFactoryReset();
+    await runFactoryReset();
   });
 
   document.body.classList.add("boot-mode");

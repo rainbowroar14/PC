@@ -291,6 +291,100 @@
     return v;
   }
 
+  async function deleteSubcollection(ref) {
+    if (!firebaseReady || !db || !ref) return;
+    const snap = await ref.limit(400).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    if (snap.size >= 400) await deleteSubcollection(ref);
+  }
+
+  async function deleteCloudAccount(profileId) {
+    if (!firebaseReady || !db || !profileId) return;
+
+    try {
+      await db.collection("profiles").doc(profileId).delete();
+    } catch (err) {
+      console.warn("profiles delete failed:", err);
+    }
+
+    try {
+      const accRef = db.collection("accounts").doc(profileId);
+      await deleteSubcollection(accRef.collection("likes"));
+      await deleteSubcollection(accRef.collection("comments"));
+      await accRef.delete();
+    } catch (err) {
+      console.warn("accounts delete failed:", err);
+    }
+
+    try {
+      const linkSnaps = await Promise.all([
+        db.collection("friendLinks").where("from", "==", profileId).get(),
+        db.collection("friendLinks").where("to", "==", profileId).get(),
+      ]);
+      const linkIds = new Set();
+      for (const snap of linkSnaps) {
+        snap.forEach((doc) => linkIds.add(doc.id));
+      }
+      for (const linkId of linkIds) {
+        try {
+          await db.collection("friendLinks").doc(linkId).delete();
+          const chatRef = db.collection("chats").doc(linkId);
+          await deleteSubcollection(chatRef.collection("messages"));
+          await chatRef.delete();
+        } catch (err) {
+          console.warn("friend/chat delete failed:", linkId, err);
+        }
+      }
+    } catch (err) {
+      console.warn("friendLinks delete failed:", err);
+    }
+
+    try {
+      const likesSnap = await db.collectionGroup("likes").get();
+      const likeBatch = db.batch();
+      let likeOps = 0;
+      likesSnap.forEach((doc) => {
+        if (doc.id !== profileId) return;
+        likeBatch.delete(doc.ref);
+        likeOps += 1;
+      });
+      if (likeOps) await likeBatch.commit();
+    } catch (err) {
+      console.warn("likes cleanup failed:", err);
+    }
+
+    try {
+      const commentSnap = await db.collectionGroup("comments").where("from", "==", profileId).get();
+      if (!commentSnap.empty) {
+        const batch = db.batch();
+        commentSnap.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn("comments cleanup failed:", err);
+    }
+  }
+
+  async function deleteAccount(profileId) {
+    const id = profileId || getSession();
+    if (!id) return false;
+
+    const local = readLocalDb();
+    if (local[id]) {
+      delete local[id];
+      writeLocalDb(local);
+    }
+
+    await deleteCloudAccount(id);
+
+    clearSession();
+    clearArchiveLocal();
+    return true;
+  }
+
   initFirebase();
 
   window.ArchiveCloud = {
@@ -312,6 +406,7 @@
     consumeNeedLogin,
     markJustLoggedIn,
     consumeJustLoggedIn,
+    deleteAccount,
     isFirebaseReady: () => firebaseReady,
   };
 
