@@ -1,15 +1,34 @@
 ---
-description: Bump APP_VERSION in desktop.js on every code change
+description: Bump APP_VERSION and UPDATE_LOG in desktop.js on every code change
 alwaysApply: true
 ---
 
-# Version bump
+# Version bump + update log
 
-This project shows a build number in the taskbar (`vN` left of the computer name) and in Terminal `ver`.
+This project shows a build number in the taskbar (`vN` left of the computer name) and in Terminal `ver`. Hovering the badge shows **what's new** for that build.
 
-**Every time you edit project code**, increment `APP_VERSION` in `desktop.js` by **1** before finishing.
+**Every time you edit project code**, before finishing:
 
-- Only change the number at the top of `desktop.js`: `const APP_VERSION = N;`
-- Do this once per task/session of changes, not per file
-- If you forget, bump it when you remember before ending the turn
-- Copy updated files to `C:\Users\finle\OneDrive\Documents\GitHub\PC` when syncing to GitHub Desktop (same as other project changes)
+1. Increment `APP_VERSION` in `desktop.js` by **1** (once per task/session, not per file).
+2. Add a new entry to `UPDATE_LOG` in `desktop.js` with the same version number and **2–6 short bullet strings** describing what changed in that task (user-facing features/fixes).
+
+Example at the top of `desktop.js`:
+
+```javascript
+const APP_VERSION = 16;
+
+const UPDATE_LOG = {
+  16: [
+    "New thing you added",
+    "Another fix or feature",
+  ],
+  15: [
+    "Previous release notes stay in the object for history",
+  ],
+};
+```
+
+- Hover tooltip reads `UPDATE_LOG[APP_VERSION]` only (current build).
+- Keep bullets plain language, one line each.
+- If you forget the log, add it when you remember before ending the turn.
+- Copy updated files to `C:\Users\finle\OneDrive\Documents\GitHub\PC` when syncing to GitHub Desktop.

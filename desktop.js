@@ -1,5 +1,27 @@
 (() => {
-  const APP_VERSION = 14;
+  const APP_VERSION = 15;
+
+  const UPDATE_LOG = {
+    15: [
+      "Hover the v15 badge in the taskbar for this update list",
+    ],
+    14: [
+      "Bad Piggies Theme and DEAD WRONG FUNK 2 in Loud/phonk",
+      "Brainiac Maniac and Graze the Roof in Relaxed music",
+    ],
+    13: [
+      "Narvent, Caretaker, and meaningful love in Relaxed music",
+      "Battle Under a Broken Sky, Chess Type Beat, and Verity in Loud/phonk",
+    ],
+    12: [
+      "Snake and Lightning open again after folder or run.bat renames",
+      "Double-click a game folder to launch it",
+    ],
+    11: [
+      "Right-click Delete on files, folders, and run.bat",
+      "Document saves persist more reliably",
+    ],
+  };
 
   const TIME_FONTS = [
     "Press Start 2P",
@@ -268,10 +290,26 @@
   }
 
   function updateTaskbarComputer() {
-    if (taskbarVersion) taskbarVersion.textContent = `v${APP_VERSION}`;
+    updateVersionBadge();
     if (!taskbarComputer) return;
     const name = Cloud()?.getUsername?.() || "";
     taskbarComputer.textContent = name ? `${name}'s Computer` : "Computer";
+  }
+
+  function updateVersionBadge() {
+    if (taskbarVersion) taskbarVersion.textContent = `v${APP_VERSION}`;
+    const listEl = document.getElementById("versionLogList");
+    const titleEl = document.getElementById("versionLogTitle");
+    if (titleEl) titleEl.textContent = `v${APP_VERSION} — what's new`;
+    if (!listEl) return;
+    const items = UPDATE_LOG[APP_VERSION];
+    listEl.innerHTML = "";
+    const bullets = items?.length ? items : ["Build update."];
+    for (const text of bullets) {
+      const li = document.createElement("li");
+      li.textContent = text;
+      listEl.appendChild(li);
+    }
   }
 
   function showLoginScreen() {
