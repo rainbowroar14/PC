@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Archive of Things</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Bungee&family=Courier+Prime:wght@400;700&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Fira+Code:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Monoton&family=Orbitron:wght@500;700&family=Pixelify+Sans:wght@400;700&family=Press+Start+2P&family=Share+Tech+Mono&family=Silkscreen:wght@400;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="desktop.css" />
+  <link rel="preload" as="image" href="assets2/explosion.png" />
+  <link rel="preload" as="image" href="assets2/boot-bg.png" />
+  <link rel="preload" as="image" href="assets2/desktop-bg.png" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- Boot clock -->
+  <div class="boot-screen" id="bootScreen">
+    <div class="boot-clock-wrap">
+      <p class="boot-time" id="bootTime">12:00:00 PM</p>
+      <p class="boot-date" id="bootDate">Sunday, January 1, 1995</p>
+    </div>
+    <p class="boot-hint">PRESS SPACE</p>
+    <button type="button" class="factory-reset-btn" id="factoryResetBtn" title="Factory reset">●</button>
+  </div>
+
+  <!-- Login (after boot slides away) -->
+  <div class="login-screen" id="loginScreen" hidden aria-hidden="true">
+    <div class="login-card">
+      <h2 class="login-title">Archive Login</h2>
+      <p class="login-hint">Username is your computer name. New accounts start blank.</p>
+      <label class="login-label" for="loginUsername">Username</label>
+      <input
+        type="text"
+        id="loginUsername"
+        class="login-input"
+        autocomplete="username"
+        maxlength="32"
+        placeholder="Computer name"
+      />
+      <label class="login-label" for="loginPassword">Password</label>
+      <input
+        type="password"
+        id="loginPassword"
+        class="login-input"
+        autocomplete="current-password"
+        maxlength="64"
+        placeholder="Password"
+      />
+      <p class="login-status" id="loginStatus" hidden></p>
+      <button type="button" class="login-submit" id="loginSubmit">Log in</button>
+    </div>
+  </div>
+
+  <div class="factory-reset-screen" id="factoryResetScreen" hidden aria-hidden="true">
+    <div class="factory-reset-card">
+      <h2>FACTORY RESET</h2>
+      <p class="factory-reset-sure">ARE YOU SURE</p>
+      <button type="button" class="factory-reset-confirm" id="factoryResetConfirm">RESET</button>
+      <p class="factory-reset-hint" id="factoryResetHint">Click once more to confirm</p>
+      <button type="button" class="factory-reset-back" id="factoryResetBack">Back</button>
+    </div>
+  </div>
+
+  <!-- Title -->
+  <div class="title-screen" id="titleScreen" aria-hidden="true">
+    <div class="title-card">
+      <div class="title-clock-row">
+        <span class="title-time" id="titleTime">12:00:00 PM</span>
+        <span class="title-date" id="titleDate">Sunday, January 1, 1995</span>
+      </div>
+      <h1>Archive of Things</h1>
+      <button type="button" class="title-start" id="titleStartBtn">Start</button>
+    </div>
+
+    <div class="power-dock">
+      <div class="power-menu" id="powerMenu" hidden>
+        <button type="button" data-power="sleep">Sleep</button>
+        <button type="button" data-power="shutdown">Shut down</button>
+        <button type="button" data-power="restart">Restart</button>
+      </div>
+      <button type="button" class="power-btn" id="powerBtn" title="Power" aria-haspopup="true" aria-expanded="false">⏻</button>
+    </div>
+  </div>
+
+  <!-- Sleep / Restart overlays -->
+  <div class="system-overlay sleep-overlay" id="sleepOverlay" aria-hidden="true">
+    <p class="sleep-hint">PRESS SPACE TO WAKE</p>
+  </div>
+  <div class="system-overlay restart-overlay" id="restartOverlay" aria-hidden="true">
+    <p class="restart-label">Restarting...</p>
+    <div class="restart-track" aria-hidden="true">
+      <div class="restart-bar"></div>
+    </div>
+  </div>
+
+  <!-- Explosion (2x) -->
+  <div class="boom-overlay" id="boomOverlay" aria-hidden="true">
+    <img
+      class="boom-img"
+      id="boomImg"
+      src="assets2/explosion.png"
+      alt="explosion"
+      decoding="sync"
+      fetchpriority="high"
+    />
+  </div>
+
+  <!-- Desktop -->
+  <div class="desktop" id="desktop" aria-hidden="true">
+    <div class="desktop-icons" id="desktopIcons"></div>
+    <div class="window-layer" id="windowLayer"></div>
+    <div class="desk-ctx" id="deskCtx" hidden>
+      <button type="button" data-ctx="customise">Customise icon</button>
+      <button type="button" data-ctx="new-folder">New Folder</button>
+      <button type="button" data-ctx="new-doc">New Document</button>
+      <button type="button" data-ctx="new-html">New HTML Document</button>
+      <button type="button" data-ctx="new-bat">New run.bat</button>
+      <button type="button" data-ctx="upload-files">Upload files…</button>
+      <button type="button" data-ctx="open-doc">Open</button>
+      <button type="button" data-ctx="open-tab">Open in Tab</button>
+      <button type="button" data-ctx="rename">Rename</button>
+    </div>
+    <div class="desk-ctx pet-ctx" id="petCtx" hidden>
+      <div class="pet-ctx-item has-sub">
+        <span class="pet-ctx-label">Movement</span>
+        <span class="pet-ctx-arrow" aria-hidden="true">▸</span>
+        <div class="pet-ctx-sub">
+          <button type="button" data-pet-move="follow">Follow</button>
+          <button type="button" data-pet-move="wander">Wander</button>
+          <button type="button" data-pet-move="idle">Idle</button>
+        </div>
+      </div>
+    </div>
+    <div class="icon-customise" id="iconCustomise" hidden aria-hidden="true">
+      <div class="icon-customise-win" role="dialog" aria-labelledby="iconCustomiseTitle">
+        <div class="icon-customise-title">
+          <span id="iconCustomiseTitle">Customise Icon</span>
+          <button type="button" class="win95-ctrl" id="iconCustomiseX" title="Close">×</button>
+        </div>
+        <div class="icon-customise-body">
+          <div class="icon-customise-preview-wrap">
+            <span class="label">Preview</span>
+            <div class="icon-customise-preview" id="iconCustomisePreview">
+              <span class="icon-customise-preview-glyph" id="iconCustomisePreviewGlyph">⚙️</span>
+              <img class="icon-customise-preview-img" id="iconCustomisePreviewImg" alt="" hidden />
+            </div>
+          </div>
+          <div class="icon-customise-actions">
+            <button type="button" class="win95-push" id="iconChooseFiles">Choose from files…</button>
+            <div class="icon-customise-btns">
+              <button type="button" class="win95-push" id="iconCustomiseSave">Save</button>
+              <button type="button" class="win95-push" id="iconCustomiseCancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="icon-picker-modal" id="iconPickerModal" hidden aria-hidden="true">
+      <div class="icon-picker-win" role="dialog" aria-labelledby="iconPickerTitle">
+        <div class="icon-picker-title">
+          <span id="iconPickerTitle">Choose Icon — My Files</span>
+          <button type="button" class="win95-ctrl" id="iconPickerClose" title="Close">×</button>
+        </div>
+        <div class="icon-picker-body" id="iconPickerBody"></div>
+      </div>
+    </div>
+    <div class="icon-picker-modal" id="fileBrowserModal" hidden aria-hidden="true">
+      <div class="icon-picker-win file-browser-win" role="dialog" aria-labelledby="fileBrowserTitle">
+        <div class="icon-picker-title">
+          <span id="fileBrowserTitle">Browse Files</span>
+          <button type="button" class="win95-ctrl" id="fileBrowserClose" title="Close">×</button>
+        </div>
+        <div class="icon-picker-body" id="fileBrowserBody"></div>
+      </div>
+    </div>
+    <input type="file" id="fsUploadInput" hidden multiple accept="image/*,.txt,.html,.htm,.ini,.md,.json,.csv,.xml,.js,.css,audio/*,.mp3,.wav,.ogg,.m4a" />
+    <div class="taskbar">
+      <button type="button" class="start-btn" id="taskStartBtn" aria-haspopup="true" aria-expanded="false">
+        <img class="start-btn-icon" src="assets/start-flag.png" width="16" height="16" alt="" />
+        <span>Start</span>
+      </button>
+      <div class="start-menu" id="startMenu" hidden>
+        <div class="start-menu-banner" aria-hidden="true">Archive of Things</div>
+        <div class="start-menu-body">
+          <div class="start-item start-item-power" id="startPowerItem" tabindex="0">
+            <img class="start-item-icon" src="assets/power-icon.png" width="24" height="24" alt="" />
+            <span class="start-item-label">Power</span>
+            <span class="start-item-arrow" aria-hidden="true">▸</span>
+            <div class="start-submenu" id="startPowerSub" hidden>
+              <button type="button" data-power="sleep">Sleep</button>
+              <button type="button" data-power="shutdown">Shut down</button>
+              <button type="button" data-power="restart">Restart</button>
+            </div>
+          </div>
+          <div class="start-sep" aria-hidden="true"></div>
+          <button type="button" class="start-item" data-start="storage" id="startStorageItem">
+            <img class="start-item-icon" src="assets/storage-icon.png" width="24" height="24" alt="" />
+            <span class="start-item-label">Storage</span>
+          </button>
+          <button type="button" class="start-item" data-start="store" id="startStoreItem">
+            <img class="start-item-icon" src="assets/store-icon.png" width="24" height="24" alt="" />
+            <span class="start-item-label">App Store</span>
+          </button>
+          <button type="button" class="start-item" data-start="files">
+            <span class="start-item-glyph" aria-hidden="true">📁</span>
+            <span class="start-item-label">My Files</span>
+          </button>
+          <div class="start-sep" aria-hidden="true"></div>
+          <button type="button" class="start-item" data-start="signout" id="startSignOutItem">
+            <img class="start-item-icon" src="assets/sign-out-icon.svg" width="24" height="24" alt="" />
+            <span class="start-item-label">Sign out</span>
+          </button>
+        </div>
+      </div>
+      <div class="taskbar-apps" id="taskbarApps" aria-label="Open programs"></div>
+      <div class="taskbar-tray">
+        <span class="taskbar-computer" id="taskbarComputer">My Computer:</span>
+        <span class="taskbar-date" id="taskbarDate">Sun 1/1/1995</span>
+        <span class="taskbar-clock" id="taskbarClock">12:00 PM</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="stage stage-legacy">
+    <div id="toolStash" hidden>
+    <section
+      class="tool-panel"
+      id="panel-text-generator"
+      data-panel="text-generator"
+      aria-label="Text Generator"
+    >
+      <form class="controls" id="controls" autocomplete="off">
+        <label class="field grow">
+          <span class="label">Text</span>
+          <input id="textInput" type="text" value="ARCHIVE" maxlength="40" spellcheck="false" />
+        </label>
+
+        <label class="field" data-feature="size">
+          <span class="label">Size <em id="sizeValue">3</em></span>
+          <input id="sizeInput" type="range" min="1" max="12" value="3" />
+        </label>
+
+        <label class="field grow">
+          <span class="label">Ink letters</span>
+          <input id="inkInput" type="text" value="" maxlength="80" spellcheck="false" placeholder="Uses your text if empty" />
+        </label>
+
+        <label class="field toggle-field">
+          <span class="label">Flip</span>
+          <span class="toggle">
+            <input id="flipInput" type="checkbox" />
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">Letter holes</span>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="label">Messiness <em id="messValue">0</em></span>
+          <input id="messInput" type="range" min="0" max="100" value="0" />
+        </label>
+
+        <div class="field">
+          <span class="label">Font</span>
+          <div id="fontPickerMount"></div>
+        </div>
+
+        <div class="field">
+          <span class="label">Big Font</span>
+          <div id="bigFontPickerMount"></div>
+        </div>
+
+        <label class="field toggle-field">
+          <span class="label">Bold</span>
+          <span class="toggle">
+            <input id="boldInput" type="checkbox" />
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">Small letters</span>
+          </span>
+        </label>
+
+        <label class="field toggle-field">
+          <span class="label">Big Bold</span>
+          <span class="toggle">
+            <input id="bigBoldInput" type="checkbox" />
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">Big shape</span>
+          </span>
+        </label>
+
+        <label class="field toggle-field">
+          <span class="label">Italic</span>
+          <span class="toggle">
+            <input id="italicInput" type="checkbox" />
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">Small letters</span>
+          </span>
+        </label>
+
+        <label class="field toggle-field">
+          <span class="label">Big Italic</span>
+          <span class="toggle">
+            <input id="bigItalicInput" type="checkbox" />
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">Big shape</span>
+          </span>
+        </label>
+
+        <div class="field color-field">
+          <span class="label">Color</span>
+          <div class="color-controls">
+            <input id="colorInput" type="color" value="#2a211c" title="Ink color" />
+            <div class="rainbow-toggles" data-feature="rainbow">
+              <label class="toggle compact-toggle">
+                <input id="rainbowInput" type="checkbox" data-rainbow="1" />
+                <span class="toggle-ui" aria-hidden="true"></span>
+                <span class="toggle-text">Rainbow</span>
+              </label>
+              <label class="toggle compact-toggle">
+                <input id="rainbow2Input" type="checkbox" data-rainbow="2" />
+                <span class="toggle-ui" aria-hidden="true"></span>
+                <span class="toggle-text">Rainbow 2</span>
+              </label>
+              <label class="toggle compact-toggle">
+                <input id="rainbow3Input" type="checkbox" data-rainbow="3" />
+                <span class="toggle-ui" aria-hidden="true"></span>
+                <span class="toggle-text">Rainbow 3</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="output-wrap" aria-label="Letter composition">
+        <canvas id="output" class="output-canvas" role="img" aria-label="Generated letter art"></canvas>
+      </div>
+    </section>
+
+    <section
+      class="tool-panel"
+      id="panel-lightning"
+      data-panel="lightning"
+      aria-label="Lightning FX Generator"
+    >
+      <div class="controls lightning-controls">
+        <div class="field">
+          <span class="label">Tools</span>
+          <div class="lightning-tool-row" role="group" aria-label="Lightning tools">
+            <button type="button" class="lightning-tool-btn is-active" id="lightningPaintBtn">Ground</button>
+            <button type="button" class="lightning-tool-btn" id="lightningGrassBtn">Grass</button>
+            <button type="button" class="lightning-tool-btn" id="lightningEraseBtn">Erase</button>
+            <button type="button" class="lightning-tool-btn" id="lightningStrikeBtn">Strike</button>
+            <button type="button" class="lightning-tool-btn" id="lightningClearBtn">Clear</button>
+          </div>
+        </div>
+
+        <label class="field">
+          <span class="label">Brush <em id="lightningBrushSizeValue">14</em></span>
+          <input id="lightningBrushSize" type="range" min="1" max="80" value="14" />
+        </label>
+
+        <label class="field color-field">
+          <span class="label">Bolt color</span>
+          <input id="lightningColor" type="color" value="#3d6cff" title="Lightning color" />
+        </label>
+
+        <p class="lightning-hint" id="lightningHint">Paint ground or grass. Strike grass to start a fire trickle.</p>
+      </div>
+
+      <div class="lightning-stage-wrap" aria-label="Lightning stage">
+        <canvas id="lightningStage" class="lightning-stage" role="img" aria-label="Lightning and ground canvas"></canvas>
+      </div>
+
+      <div class="lightning-settings" aria-label="Lightning settings">
+        <p class="lightning-settings-title">Lightning</p>
+        <div class="lightning-settings-row">
+          <label class="field">
+            <span class="label">Limbs / inch <em id="lightningLimbsValue">6</em></span>
+            <input id="lightningLimbs" type="range" min="0" max="25" value="6" />
+          </label>
+          <label class="field">
+            <span class="label">Branches out <em id="lightningBranchesValue">3</em></span>
+            <input id="lightningBranches" type="range" min="0" max="20" value="3" />
+          </label>
+          <label class="field">
+            <span class="label">Branch limbs <em id="lightningBranchLimbsValue">4</em></span>
+            <input id="lightningBranchLimbs" type="range" min="1" max="25" value="4" />
+          </label>
+        </div>
+      </div>
+    </section>
+    </div>
+  </main>
+
+  <canvas id="ferro" class="ferro-canvas" aria-hidden="true"></canvas>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="cloud.js"></script>
+  <script src="social.js"></script>
+  <script src="app.js"></script>
+  <script src="ferro.js"></script>
+  <script src="lightning.js"></script>
+  <script src="store-games.js"></script>
+  <script src="desktop.js"></script>
+</body>
+</html>

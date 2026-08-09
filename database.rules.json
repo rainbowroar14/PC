@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "profiles": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
