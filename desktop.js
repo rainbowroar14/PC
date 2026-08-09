@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 1;
+  const APP_VERSION = 5;
 
   const TIME_FONTS = [
     "Press Start 2P",
@@ -41,10 +41,109 @@
 
   const deskAudio = new Audio("assets/startup-desktop.mp3");
   deskAudio.preload = "auto";
+  const VOLUME_KEY = "archive-master-volume";
+  let masterVolume = 0.85;
+  let masterMuted = false;
+  let volumeBeforeMute = 0.85;
+
+  function loadMasterVolume() {
+    try {
+      const raw = localStorage.getItem(VOLUME_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (typeof d.level === "number") masterVolume = Math.max(0, Math.min(1, d.level));
+      masterMuted = !!d.muted;
+      if (typeof d.volumeBeforeMute === "number") {
+        volumeBeforeMute = Math.max(0, Math.min(1, d.volumeBeforeMute));
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function saveMasterVolume() {
+    trySetLocalStorage(VOLUME_KEY, JSON.stringify({
+      level: masterVolume,
+      muted: masterMuted,
+      volumeBeforeMute: volumeBeforeMute,
+    }));
+  }
+
+  function effectiveVolume() {
+    return masterMuted ? 0 : masterVolume;
+  }
+
+  function applyVolumeToAudio(audio) {
+    if (!audio) return;
+    audio.volume = effectiveVolume();
+  }
+
+  function applyVolumeToAllAudio() {
+    applyVolumeToAudio(deskAudio);
+    applyVolumeToAudio(mailAudio);
+    applyVolumeToAudio(musicAudioEl);
+  }
+
+  function updateVolumeUi() {
+    const slider = document.getElementById("startVolumeSlider");
+    const muteBtn = document.getElementById("startVolumeMute");
+    const label = document.getElementById("startVolumeLabel");
+    const pct = masterMuted ? 0 : Math.round(masterVolume * 100);
+    if (slider) slider.value = String(pct);
+    if (label) label.textContent = masterMuted ? "Volume (muted)" : `Volume (${pct}%)`;
+    if (muteBtn) {
+      muteBtn.textContent = masterMuted || masterVolume === 0 ? "🔇" : "🔊";
+      muteBtn.setAttribute("aria-pressed", masterMuted ? "true" : "false");
+      muteBtn.title = masterMuted ? "Unmute" : "Mute";
+    }
+  }
+
+  function setMasterVolume(level, opts = {}) {
+    masterVolume = Math.max(0, Math.min(1, level));
+    if (masterVolume > 0) volumeBeforeMute = masterVolume;
+    if (!opts.fromMuteToggle) {
+      masterMuted = masterVolume === 0;
+    }
+    applyVolumeToAllAudio();
+    updateVolumeUi();
+    saveMasterVolume();
+  }
+
+  function toggleMasterMute() {
+    if (masterMuted) {
+      masterMuted = false;
+      masterVolume = volumeBeforeMute > 0 ? volumeBeforeMute : 0.85;
+    } else {
+      volumeBeforeMute = masterVolume > 0 ? masterVolume : 0.85;
+      masterMuted = true;
+    }
+    applyVolumeToAllAudio();
+    updateVolumeUi();
+    saveMasterVolume();
+  }
+
+  function wireStartVolumeControls() {
+    const muteBtn = document.getElementById("startVolumeMute");
+    const slider = document.getElementById("startVolumeSlider");
+    muteBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleMasterMute();
+    });
+    slider?.addEventListener("input", () => {
+      const v = Number(slider.value) / 100;
+      masterMuted = v === 0;
+      setMasterVolume(v);
+    });
+    updateVolumeUi();
+  }
+
+  loadMasterVolume();
+  applyVolumeToAudio(deskAudio);
 
   function playSound(audio) {
     if (!audio) return;
     try {
+      applyVolumeToAudio(audio);
       audio.pause();
       audio.currentTime = 0;
       const p = audio.play();
@@ -785,6 +884,22 @@
   const BLANK_PROFILE_PIC = "assets/profile-blank.svg";
   const MEMORY_WARN_MB = 700;
 
+  function trySetLocalStorage(key, value) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (err) {
+      if (err?.name === "QuotaExceededError") return false;
+      return false;
+    }
+  }
+
+  function alertStorageFull(what = "save") {
+    window.alert(
+      `Could not ${what} — storage is full. Delete old photos in My Files or use smaller images.`
+    );
+  }
+
   function isGifSrc(src) {
     if (!src) return false;
     return /^data:image\/gif/i.test(src) || /\.gif(\?|$)/i.test(src);
@@ -858,29 +973,43 @@
     try {
       if (!src.startsWith("data:")) dataUrl = await fetchAsDataUrl(src);
     } catch (_) {
-      return "";
+      return src.startsWith("data:") ? src : "";
     }
     if (isGifSrc(dataUrl)) {
-      return dataUrl.length <= maxBytes * 2 ? dataUrl : dataUrl.slice(0, maxBytes * 2);
+      if (dataUrl.length <= maxBytes * 2) return dataUrl;
+      return "";
     }
-    let out = await compressImageDataUrl(dataUrl, maxWidth, 0.82);
-    if (out.length > maxBytes) out = await compressImageDataUrl(dataUrl, Math.round(maxWidth * 0.65), 0.68);
-    return out.length <= maxBytes * 1.15 ? out : out.slice(0, maxBytes);
+    let width = maxWidth;
+    let quality = 0.82;
+    let out = await compressImageDataUrl(dataUrl, width, quality);
+    while (out.length > maxBytes && width > 64) {
+      width = Math.round(width * 0.72);
+      quality = Math.max(0.45, quality - 0.12);
+      out = await compressImageDataUrl(dataUrl, width, quality);
+    }
+    if (out.length > maxBytes) {
+      out = await compressImageDataUrl(dataUrl, 96, 0.45);
+    }
+    return out.length <= maxBytes ? out : "";
   }
 
   async function prepareShareableProfileData(data) {
     const next = { ...data };
     if (next.pictureSrc) {
-      next.pictureSrc = await mediaToShareableSrc(next.pictureSrc, { maxWidth: 256, maxBytes: 180000 });
+      const shared = await mediaToShareableSrc(next.pictureSrc, { maxWidth: 256, maxBytes: 180000 });
+      next.pictureSrc = shared || next.pictureSrc;
     }
     if (Array.isArray(next.stories)) {
       const stories = [];
       for (const story of next.stories.slice(0, 3)) {
+        if (!story?.pictureSrc) {
+          stories.push({ ...story, pictureSrc: "" });
+          continue;
+        }
+        const shared = await mediaToShareableSrc(story.pictureSrc, { maxWidth: 480, maxBytes: 280000 });
         stories.push({
           ...story,
-          pictureSrc: story?.pictureSrc
-            ? await mediaToShareableSrc(story.pictureSrc, { maxWidth: 480, maxBytes: 280000 })
-            : "",
+          pictureSrc: shared || story.pictureSrc,
         });
       }
       next.stories = stories;
@@ -890,7 +1019,8 @@
 
   function getProfileIconSrc() {
     const pfp = readProfileData().pictureSrc;
-    return pfp && isShareableMediaSrc(pfp) ? pfp : "assets/profile-icon.svg";
+    if (!pfp || pfp.startsWith("blob:")) return "assets/profile-icon.svg";
+    return pfp;
   }
 
   function updateProfileChromeIcon() {
@@ -984,6 +1114,16 @@
       storageKeys: [],
       memMB: 30,
       blurb: "Command line for My Files and apps.",
+    },
+    {
+      id: "wikipedia",
+      name: "Wikipedia",
+      kind: "Tool",
+      parent: "Tools",
+      folder: "Wikipedia",
+      storageKeys: [],
+      memMB: 40,
+      blurb: "Browse Wikipedia in a window.",
     },
     {
       id: "lightning",
@@ -1337,6 +1477,19 @@
                 },
               },
             },
+            Wikipedia: {
+              type: "folder",
+              name: "Wikipedia",
+              children: {
+                "run.bat": { type: "bat", name: "run.bat", app: "wikipedia" },
+                "readme.txt": {
+                  type: "txt",
+                  name: "readme.txt",
+                  body:
+                    "WIKIPEDIA v1.0\r\n==============\r\n\r\nBrowse Wikipedia like on the web.\r\nDouble-click run.bat to launch.\r\nUse the address bar to search or open pages.\r\n",
+                },
+              },
+            },
           },
         },
         Music: {
@@ -1645,11 +1798,11 @@
   }
 
   function saveFsExtras(list) {
-    try {
-      localStorage.setItem(FS_EXTRAS_KEY, JSON.stringify(list));
-    } catch (_) {
-      /* ignore */
+    if (!trySetLocalStorage(FS_EXTRAS_KEY, JSON.stringify(list))) {
+      alertStorageFull("save file");
+      return false;
     }
+    return true;
   }
 
   function applyFsExtras() {
@@ -1678,11 +1831,11 @@
   }
 
   function savePhotosExtra(list) {
-    try {
-      localStorage.setItem(PHOTOS_EXTRA_KEY, JSON.stringify(list));
-    } catch (_) {
-      /* ignore */
+    if (!trySetLocalStorage(PHOTOS_EXTRA_KEY, JSON.stringify(list))) {
+      alertStorageFull("save photo");
+      return false;
     }
+    return true;
   }
 
   function applyPhotosExtra() {
@@ -1741,11 +1894,11 @@
   }
 
   function saveImgExtras(list) {
-    try {
-      localStorage.setItem(IMG_EXTRAS_KEY, JSON.stringify(list));
-    } catch (_) {
-      /* ignore */
+    if (!trySetLocalStorage(IMG_EXTRAS_KEY, JSON.stringify(list))) {
+      alertStorageFull("save image");
+      return false;
     }
+    return true;
   }
 
   function applyImgExtras() {
@@ -2027,9 +2180,8 @@
       type: "img",
       name,
       src: dataUrl,
-      body: "Saved from Pixel Paint\r\n",
+      body: "Saved image\r\n",
     };
-    parent.children[name] = entry;
     const list = loadImgExtras();
     list.push({
       parentPath: [...parentPath],
@@ -2037,14 +2189,31 @@
       src: dataUrl,
       body: entry.body,
     });
-    saveImgExtras(list);
-    // keep Photos mirror list in sync when saving there
+    if (!saveImgExtras(list)) {
+      return null;
+    }
     if (parentPath.length === 1 && parentPath[0] === "Photos") {
       const photos = loadPhotosExtra();
       photos.push({ name, src: dataUrl, body: entry.body });
-      savePhotosExtra(photos);
+      if (!savePhotosExtra(photos)) {
+        list.pop();
+        saveImgExtras(list);
+        return null;
+      }
     }
+    parent.children[name] = entry;
+    Cloud()?.scheduleSave?.();
     return entry;
+  }
+
+  async function prepareImageForStorage(dataUrl, opts = {}) {
+    const maxBytes = opts.maxBytes || 650000;
+    if (!dataUrl || typeof dataUrl !== "string") return "";
+    if (isGifSrc(dataUrl)) {
+      if (dataUrl.length <= maxBytes * 2) return dataUrl;
+      return "";
+    }
+    return mediaToShareableSrc(dataUrl, { maxWidth: opts.maxWidth || 1280, maxBytes });
   }
 
   function saveAudioToFolder(parentPath, dataUrl, baseName = "track") {
@@ -2395,17 +2564,14 @@
   }
 
   function getBatIcon(key) {
+    if (key.includes("Profile")) return getProfileIconSrc();
     const custom = loadBatIcons()[key] || null;
     if (custom) return custom;
     if (key.includes("Pixel Paint")) return "assets/paint-icon.png";
-    if (key.includes("Profile")) {
-      const pfp = readProfileData().pictureSrc;
-      if (pfp && isShareableMediaSrc(pfp)) return pfp;
-      return "assets/profile-icon.svg";
-    }
     if (key.includes("Social Media")) return "assets/social-media-icon.svg";
     if (key.includes("Music Player")) return "assets/music-player-icon.svg";
     if (key.includes("Terminal")) return "assets/terminal-icon.svg";
+    if (key.includes("Wikipedia")) return "assets/wikipedia-icon.svg";
     return null;
   }
 
@@ -2538,6 +2704,7 @@
   function playMailSound() {
     try {
       if (!mailAudio) mailAudio = new Audio("assets/yougotmail.mp3");
+      applyVolumeToAudio(mailAudio);
       mailAudio.currentTime = 0;
       mailAudio.play().catch(() => {});
     } catch (_) {
@@ -2593,21 +2760,48 @@
     );
   }
 
-  function shortcutGlyphHTML(sc) {
+  function shortcutGlyphEmoji(sc) {
     if (sc.kind === "files") return "📁";
-    if (sc.kind === "bat") {
-      const key = pathKey(sc.path || []);
-      const custom = getBatIcon(key);
-      if (custom) return `<img src="${custom}" alt="" />`;
-      return "⚙️";
-    }
+    if (sc.kind === "bat") return "⚙️";
     if (sc.kind === "folder") return "📁";
-    if (sc.kind === "img") {
-      const entry = resolveShortcutEntry(sc);
-      if (entry?.src) return `<img src="${entry.src}" alt="" />`;
-      return "🖼️";
-    }
+    if (sc.kind === "img") return "🖼️";
     return "📑";
+  }
+
+  function shortcutIconSrc(sc) {
+    if (sc.kind === "bat") {
+      if (sc.id === "sc_profile" || sc.label === "Profile") return getProfileIconSrc();
+      return getBatIcon(pathKey(sc.path || []));
+    }
+    if (sc.kind === "img") {
+      return resolveShortcutEntry(sc)?.src || null;
+    }
+    return null;
+  }
+
+  function fillDeskIconGlyph(glyph, sc) {
+    glyph.textContent = "";
+    const src = shortcutIconSrc(sc);
+    if (src) {
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = src;
+      if (sc.id === "sc_profile" || sc.label === "Profile") {
+        img.onerror = () => {
+          img.onerror = null;
+          img.src = "assets/profile-icon.svg";
+        };
+      }
+      glyph.appendChild(img);
+      return;
+    }
+    glyph.textContent = shortcutGlyphEmoji(sc);
+  }
+
+  function shortcutGlyphHTML(sc) {
+    const src = shortcutIconSrc(sc);
+    if (src) return `<img src="${src.replace(/"/g, "&quot;")}" alt="" />`;
+    return shortcutGlyphEmoji(sc);
   }
 
   function renderDesktopIcons() {
@@ -2623,10 +2817,11 @@
       btn.style.left = `${pos.left}px`;
       btn.style.top = `${pos.top}px`;
       btn.innerHTML = `
-        <span class="desk-icon-glyph" aria-hidden="true">${shortcutGlyphHTML(sc)}</span>
+        <span class="desk-icon-glyph" aria-hidden="true"></span>
         ${isSocialShortcut(sc) ? '<span class="desk-icon-badge" data-social-badge hidden></span>' : ""}
         <span class="desk-icon-label"></span>
       `;
+      fillDeskIconGlyph(btn.querySelector(".desk-icon-glyph"), sc);
       btn.querySelector(".desk-icon-label").textContent = sc.label;
       deskIcons.appendChild(btn);
     }
@@ -2995,13 +3190,26 @@
       const name = file.name || "upload";
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
+          let dataUrl = reader.result;
+          const prepared = await prepareImageForStorage(dataUrl);
+          if (!prepared) {
+            window.alert(
+              isGifSrc(dataUrl)
+                ? "That GIF is too large to save. Try a smaller file."
+                : "That image is too large to save. Try a smaller file."
+            );
+            finish(targetPath);
+            return;
+          }
+          dataUrl = prepared;
           const base =
             name
               .replace(/\.[^.]+$/, "")
               .replace(/[\\/:*?"<>|]/g, "")
               .slice(0, 32) || "upload";
-          saveImageToFolder(targetPath, reader.result, base);
+          const entry = saveImageToFolder(targetPath, dataUrl, base);
+          if (!entry) alertStorageFull("save image");
           finish(targetPath);
         };
         reader.onerror = () => finish(targetPath);
@@ -3396,6 +3604,11 @@
       return;
     }
 
+    if (appId === "wikipedia") {
+      openWikipediaApp();
+      return;
+    }
+
     const termId = `term:${appId}`;
     // One terminal per app — closing it closes the app
     if (openWindows.has(termId)) {
@@ -3717,6 +3930,8 @@
         }
         refreshOpenFolder(pathParts);
         closeFileBrowser();
+      } else {
+        alertStorageFull("save image");
       }
     });
   }
@@ -3752,11 +3967,15 @@
 
   function setDesktopWallpaper(src) {
     const next = src || DEFAULT_WALLPAPER;
-    try {
-      if (next === DEFAULT_WALLPAPER) localStorage.removeItem(WALLPAPER_KEY);
-      else localStorage.setItem(WALLPAPER_KEY, next);
-    } catch (_) {
-      /* ignore */
+    if (next === DEFAULT_WALLPAPER) {
+      try {
+        localStorage.removeItem(WALLPAPER_KEY);
+      } catch (_) {
+        /* ignore */
+      }
+    } else if (!trySetLocalStorage(WALLPAPER_KEY, next)) {
+      alertStorageFull("save wallpaper");
+      return;
     }
     applyDesktopWallpaper();
     refreshBgChangerPreview();
@@ -3780,10 +3999,9 @@
   }
 
   function writeProfileData(data) {
-    try {
-      localStorage.setItem(PROFILE_DATA_KEY, JSON.stringify(data));
-    } catch (_) {
-      /* ignore */
+    if (!trySetLocalStorage(PROFILE_DATA_KEY, JSON.stringify(data))) {
+      alertStorageFull("save profile");
+      return false;
     }
     const pid = Cloud()?.getSession?.();
     const social = window.ArchiveSocial;
@@ -3794,6 +4012,7 @@
     }
     updateProfileChromeIcon();
     Cloud()?.scheduleSave?.();
+    return true;
   }
 
   function openProfileApp(opts = {}) {
@@ -3915,6 +4134,10 @@
               if (!src) return;
               const desc = window.prompt("Story description:", "") || "";
               const pictureSrc = await mediaToShareableSrc(src, { maxWidth: 480, maxBytes: 280000 });
+              if (!pictureSrc) {
+                window.alert("Story image too large — try a smaller photo.");
+                return;
+              }
               draftStories.push({
                 id: `story_${Date.now().toString(36)}`,
                 pictureSrc,
@@ -3947,8 +4170,14 @@
         onPick: async (src) => {
           if (!src) return;
           statusEl.textContent = "Processing photo…";
-          draftPicture = await mediaToShareableSrc(src, { maxWidth: 256, maxBytes: 180000 });
+          const prepared = await mediaToShareableSrc(src, { maxWidth: 256, maxBytes: 180000 });
+          if (!prepared) {
+            statusEl.textContent = "Image too large — try a smaller file.";
+            return;
+          }
+          draftPicture = prepared;
           updateAvatar(draftPicture);
+          updateProfileChromeIcon();
           statusEl.textContent = "";
         },
       });
@@ -3964,7 +4193,10 @@
         stories: draftStories.slice(0, 3),
       };
       const shared = await prepareShareableProfileData(next);
-      writeProfileData(shared);
+      if (!writeProfileData(shared)) {
+        statusEl.textContent = "Save failed.";
+        return;
+      }
       draftPicture = shared.pictureSrc || "";
       draftStories = Array.isArray(shared.stories) ? [...shared.stories] : [];
       fillForm(shared, shared.pictureSrc);
@@ -4743,7 +4975,9 @@
         if (!musicSeekDragging) updateMusicTransport();
       });
       musicAudioEl.addEventListener("loadedmetadata", () => updateMusicTransport());
+      applyVolumeToAudio(musicAudioEl);
     }
+    applyVolumeToAudio(musicAudioEl);
     return musicAudioEl;
   }
 
@@ -4755,6 +4989,7 @@
     musicCurrentIndex = index;
     const audio = getMusicAudio();
     audio.src = src;
+    applyVolumeToAudio(audio);
     audio.play().catch(() => {});
     musicPlayerUiRefresh?.();
     updateMusicTransport();
@@ -5475,7 +5710,7 @@
       "  dir, ls [path] List files in folder",
       "  type <file>    Print a text file",
       "  open files     Open My Files window",
-      "  open <app>     Open app (profile, music, social, store, pet, paint)",
+      "  open <app>     Open app (profile, music, social, wiki, store, pet, paint)",
       "  echo <text>    Print text",
       "  fortune        Random tip",
       "  credits        About this system",
@@ -5565,12 +5800,14 @@
           textgen: () => openToolApp("text-generator"),
           lightning: () => openToolApp("lightning"),
           terminal: () => openTerminalApp(),
+          wiki: () => openWikipediaApp(),
+          wikipedia: () => openWikipediaApp(),
         };
         if (apps[target]) {
           apps[target]();
           return [`Launching ${rest}...`];
         }
-        return ["Unknown app. Try: profile, music, social, store, pet, paint"];
+        return ["Unknown app. Try: profile, music, social, wiki, store, pet, paint"];
       }
       case "echo":
         return rest ? [rest] : [""];
@@ -5674,6 +5911,100 @@
     window.setTimeout(() => input.focus(), 80);
   }
 
+  const WIKI_HOME = "https://en.wikipedia.org/wiki/Main_Page";
+
+  function wikiNavigateUrl(input) {
+    const raw = String(input || "").trim();
+    if (!raw) return WIKI_HOME;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.includes("wikipedia.org")) return raw.startsWith("http") ? raw : `https://${raw}`;
+    const title = raw.replace(/\s+/g, "_");
+    if (/^special:/i.test(raw) || /^wiki:/i.test(raw)) {
+      return `https://en.wikipedia.org/wiki/${title}`;
+    }
+    return `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/_/g, " ")).replace(/%20/g, "_")}`;
+  }
+
+  function openWikipediaApp(opts = {}) {
+    const appId = "wikipedia";
+    const id = `app:${appId}`;
+    const termId = opts.termId || appSessions.get(appId)?.termId;
+
+    if (openWindows.has(id)) {
+      focusWindow(openWindows.get(id));
+      const session = appSessions.get(appId) || {};
+      session.appWinId = id;
+      if (termId) session.termId = termId;
+      appSessions.set(appId, session);
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "wiki-app";
+    wrap.innerHTML = `
+      <div class="wiki-toolbar">
+        <button type="button" class="win95-push" data-wiki-back title="Back">←</button>
+        <button type="button" class="win95-push" data-wiki-fwd title="Forward">→</button>
+        <button type="button" class="win95-push" data-wiki-home title="Home">Home</button>
+        <input type="text" class="wiki-url" data-wiki-url value="${WIKI_HOME}" spellcheck="false" />
+        <button type="button" class="win95-push" data-wiki-go>Go</button>
+        <button type="button" class="win95-push" data-wiki-external title="Open in browser">↗</button>
+      </div>
+      <iframe class="wiki-frame" data-wiki-frame title="Wikipedia" src="${WIKI_HOME}"></iframe>
+    `;
+
+    const frame = wrap.querySelector("[data-wiki-frame]");
+    const urlInput = wrap.querySelector("[data-wiki-url]");
+
+    function navigate(input) {
+      const next = wikiNavigateUrl(input);
+      if (!frame) return;
+      frame.src = next;
+      if (urlInput) urlInput.value = next;
+    }
+
+    wrap.querySelector("[data-wiki-home]")?.addEventListener("click", () => navigate(WIKI_HOME));
+    wrap.querySelector("[data-wiki-go]")?.addEventListener("click", () => navigate(urlInput?.value));
+    urlInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") navigate(urlInput.value);
+    });
+    wrap.querySelector("[data-wiki-back]")?.addEventListener("click", () => {
+      try {
+        frame?.contentWindow?.history?.back();
+      } catch (_) {
+        /* cross-origin */
+      }
+    });
+    wrap.querySelector("[data-wiki-fwd]")?.addEventListener("click", () => {
+      try {
+        frame?.contentWindow?.history?.forward();
+      } catch (_) {
+        /* cross-origin */
+      }
+    });
+    wrap.querySelector("[data-wiki-external]")?.addEventListener("click", () => {
+      window.open(frame?.src || WIKI_HOME, "_blank", "noopener,noreferrer");
+    });
+
+    makeWindow({
+      id,
+      title: "Wikipedia",
+      icon: "assets/wikipedia-icon.svg",
+      width: 900,
+      height: 640,
+      left: 48,
+      top: 36,
+      bodyHTML: wrap,
+      bodyClass: "wiki-app-body",
+      onClose: () => closeLinkedSession(appId, id),
+    });
+
+    const session = appSessions.get(appId) || {};
+    session.appWinId = id;
+    if (termId) session.termId = termId;
+    appSessions.set(appId, session);
+  }
+
   function openToolApp(appId, opts = {}) {
     if (appId === "pixel-paint") {
       openPixelPaint(opts);
@@ -5701,6 +6032,10 @@
     }
     if (appId === "terminal") {
       openTerminalApp(opts);
+      return;
+    }
+    if (appId === "wikipedia") {
+      openWikipediaApp(opts);
       return;
     }
     const panel = document.querySelector(`[data-panel="${appId}"]`);
@@ -6014,6 +6349,7 @@
   const startMenuEl = document.getElementById("startMenu");
   const startPowerItem = document.getElementById("startPowerItem");
   const startPowerSub = document.getElementById("startPowerSub");
+  wireStartVolumeControls();
 
   function showPowerSub() {
     if (!startPowerSub || !startPowerItem) return;

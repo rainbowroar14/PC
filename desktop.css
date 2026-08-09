@@ -697,8 +697,9 @@ body.login-mode {
 .desk-icon-glyph img {
   width: 40px;
   height: 40px;
-  object-fit: contain;
-  image-rendering: pixelated;
+  object-fit: cover;
+  border-radius: 2px;
+  image-rendering: auto;
   filter: none;
 }
 
@@ -943,6 +944,48 @@ body.modal-lock .taskbar {
   flex: 1;
   width: 100%;
   height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.wiki-app-body {
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: #fff !important;
+  overflow: hidden !important;
+}
+
+.wiki-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.wiki-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  background: #c0c0c0;
+  border-bottom: 1px solid #808080;
+  flex-shrink: 0;
+}
+
+.wiki-url {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px inset #808080;
+}
+
+.wiki-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   border: 0;
   background: #fff;
 }
@@ -1357,6 +1400,52 @@ body.modal-lock .taskbar {
   margin: 0.25rem 0.2rem;
   border-top: 1px solid var(--win-face-darker);
   border-bottom: 1px solid var(--win-face-light);
+}
+
+.start-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.start-volume-mute {
+  appearance: none;
+  border: 1px outset #c0c0c0;
+  background: #c0c0c0;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: default;
+  display: grid;
+  place-items: center;
+}
+
+.start-volume-mute:active {
+  border-style: inset;
+}
+
+.start-volume-slider-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.start-volume-label {
+  font-size: 0.72rem;
+  color: #000;
+  line-height: 1;
+}
+
+.start-volume-slider {
+  width: 100%;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: #000080;
 }
 
 .start-submenu {

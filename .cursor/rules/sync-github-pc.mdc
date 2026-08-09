@@ -1,0 +1,25 @@
+---
+description: Sync all project changes to the GitHub Desktop PC repo after every edit session
+alwaysApply: true
+---
+
+# Sync to GitHub Desktop (PC repo)
+
+This workspace (`babel`) is the dev copy. The GitHub Desktop repo is:
+
+`C:\Users\finle\OneDrive\Documents\GitHub\PC`
+
+**After every task where you change project files**, copy everything from `babel` into `PC` before you finish:
+
+```powershell
+$babel = "C:\Users\finle\Projects\babel"
+$pc = "C:\Users\finle\OneDrive\Documents\GitHub\PC"
+Get-ChildItem $babel -Force | Where-Object { $_.Name -ne '.git' } | ForEach-Object { Copy-Item $_.FullName -Destination $pc -Recurse -Force }
+```
+
+- Copy **all** folders and files (`assets`, `assets2`, `assets3`, `assets4`, `.cursor`, `*.js`, `*.html`, `*.css`, rules, etc.)
+- Do **not** overwrite or delete `PC\.git` — exclude only `babel\.git` from the copy
+- Do **not** commit or push unless the user asks
+- If the sync command fails, say so and tell the user to run it manually
+
+The user uses GitHub Desktop on the **PC** folder to publish. If you only edit `babel`, their repo stays outdated.
