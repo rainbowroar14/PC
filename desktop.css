@@ -207,34 +207,6 @@ body.login-mode {
   50% { opacity: 0; }
 }
 
-.factory-reset-btn {
-  appearance: none;
-  position: absolute;
-  left: 1.25rem;
-  bottom: 1.25rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 999px;
-  border: 2px solid #5a0000;
-  background: #c00000;
-  color: #ffb0b0;
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  z-index: 5;
-}
-
-.factory-reset-btn:hover,
-.factory-reset-btn:focus-visible {
-  background: #e00000;
-  outline: none;
-}
-
-.factory-reset-btn:active {
-  transform: translateY(1px);
-}
-
 .factory-reset-screen {
   position: fixed;
   inset: 0;
@@ -1173,6 +1145,12 @@ body.modal-lock .taskbar {
 
 .desk-ctx button[hidden] {
   display: none;
+}
+
+.desk-ctx-danger {
+  margin-top: 0.15rem;
+  border-top: 1px solid var(--win-face-darker);
+  color: #800000;
 }
 
 .folder-body-inner.is-file-drop {

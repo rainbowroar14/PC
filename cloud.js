@@ -122,8 +122,12 @@
   function writeLocalDb(map) {
     try {
       localStorage.setItem(LOCAL_PROFILES_KEY, JSON.stringify(map));
-    } catch (_) {
-      /* ignore */
+      return true;
+    } catch (err) {
+      if (err?.name === "QuotaExceededError") {
+        console.warn("Profile storage full — could not save locally.");
+      }
+      return false;
     }
   }
 
@@ -209,7 +213,10 @@
     };
 
     local[id] = payload;
-    writeLocalDb(local);
+    if (!writeLocalDb(local)) {
+      console.warn("Local profile save failed — storage may be full.");
+      return false;
+    }
 
     if (firebaseReady && db) {
       try {
@@ -247,8 +254,19 @@
     if (!id) return;
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
+      saveTimer = 0;
       saveProfile(id);
     }, 400);
+  }
+
+  function flushSave() {
+    const id = getSession();
+    if (!id) return Promise.resolve(false);
+    if (saveTimer) {
+      window.clearTimeout(saveTimer);
+      saveTimer = 0;
+    }
+    return saveProfile(id);
   }
 
   function getSession() {
@@ -395,6 +413,7 @@
     saveProfile,
     createProfileOnLogin,
     scheduleSave,
+    flushSave,
     collectArchiveData,
     applyArchiveData,
     clearArchiveLocal,

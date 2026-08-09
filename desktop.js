@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 7;
+  const APP_VERSION = 13;
 
   const TIME_FONTS = [
     "Press Start 2P",
@@ -900,7 +900,7 @@
   const AUDIO_EXTRAS_KEY = "archive-audio-extras";
   const MUSIC_PLAYLIST_KEY = "archive-music-playlist";
   const MUSIC_PLAYLIST_VER_KEY = "archive-music-playlist-ver";
-  const MUSIC_PLAYLIST_VER = 6;
+  const MUSIC_PLAYLIST_VER = 7;
   const WALLPAPER_KEY = "archive-desktop-wallpaper";
   const PET_MODE_KEY = "archive-desktop-pet-mode";
   const PROFILE_DATA_KEY = "archive-user-profile";
@@ -1554,6 +1554,24 @@
                   src: "assets3/music/atlasaudio-relax-511892.mp3",
                   body: "Relax track\r\n",
                 },
+                "Narvent - Memory Reboot.mp3": {
+                  type: "audio",
+                  name: "Narvent - Memory Reboot.mp3",
+                  src: "assets3/music/narvent-memory-reboot.mp3",
+                  body: "V-J Narvent — Memory Reboot\r\n",
+                },
+                "The Caretaker - burning memory.mp3": {
+                  type: "audio",
+                  name: "The Caretaker - burning memory.mp3",
+                  src: "assets3/music/caretaker-burning-memory.mp3",
+                  body: "The Caretaker — It's just a burning memory\r\n",
+                },
+                "meaningful love (instrumental).mp3": {
+                  type: "audio",
+                  name: "meaningful love (instrumental).mp3",
+                  src: "assets3/music/meaningful-love-instrumental.mp3",
+                  body: "meaningful love (instrumental)\r\n",
+                },
               },
             },
             "Loud/phonk": {
@@ -1619,6 +1637,24 @@
                   name: "GLORY (Slowed).mp3",
                   src: "assets4/music/ogryzek-glory-slowed.mp3",
                   body: "Ogryzek — GLORY Slowed\r\n",
+                },
+                "BATTLE UNDER A BROKEN SKY.mp3": {
+                  type: "audio",
+                  name: "BATTLE UNDER A BROKEN SKY.mp3",
+                  src: "assets4/music/battle-under-broken-sky.mp3",
+                  body: "BATTLE UNDER A BROKEN SKY\r\n",
+                },
+                "Chess Type Beat (Slowed).mp3": {
+                  type: "audio",
+                  name: "Chess Type Beat (Slowed).mp3",
+                  src: "assets4/music/chess-type-beat-slowed.mp3",
+                  body: "Chess type beat slowed\r\n",
+                },
+                "VERITY HARDTEKK (Ultra Slowed).mp3": {
+                  type: "audio",
+                  name: "VERITY HARDTEKK (Ultra Slowed).mp3",
+                  src: "assets4/music/verity-hardtekk-ultra-slowed.mp3",
+                  body: "VERITY HARDTEKK Ultra Slowed\r\n",
                 },
               },
             },
@@ -1994,17 +2030,139 @@
 
   function applyFsExtras() {
     for (const item of loadFsExtras()) {
+      if (item.deleted && item.parentPath && item.name) {
+        const parent = resolvePath(item.parentPath)?.node;
+        if (parent?.children?.[item.name]) delete parent.children[item.name];
+        continue;
+      }
       if (!item?.parentPath || !item?.entry?.name) continue;
       const parent = resolvePath(item.parentPath)?.node;
       if (!parent || parent.type !== "folder") continue;
       if (!parent.children) parent.children = {};
-      if (!parent.children[item.entry.name]) {
+      const existing = parent.children[item.entry.name];
+      if (!existing) {
         parent.children[item.entry.name] = { ...item.entry };
         if (item.entry.type === "folder" && !parent.children[item.entry.name].children) {
           parent.children[item.entry.name].children = {};
         }
+        continue;
+      }
+      if (item.entry.type === "folder" && existing.type === "folder") {
+        existing.name = item.entry.name;
+        if (!existing.children) existing.children = {};
+        continue;
+      }
+      const keepChildren = existing.type === "folder" ? existing.children : undefined;
+      Object.assign(existing, { ...item.entry });
+      if (keepChildren && existing.type === "folder") existing.children = keepChildren;
+    }
+  }
+
+  function pathMatchesOrUnder(itemKey, rootKey) {
+    if (!rootKey) return !itemKey || itemKey === rootKey;
+    return itemKey === rootKey || itemKey.startsWith(`${rootKey}/`);
+  }
+
+  function upsertFsEntry(parentPath, entry) {
+    if (!entry?.name || !Array.isArray(parentPath)) return false;
+    const extras = loadFsExtras();
+    const pk = pathKey(parentPath);
+    let found = false;
+    for (const item of extras) {
+      if (item.deleted) continue;
+      if (pathKey(item.parentPath || []) === pk && item.entry?.name === entry.name) {
+        item.entry = { ...item.entry, ...entry };
+        found = true;
+        break;
       }
     }
+    if (!found) {
+      extras.push({ parentPath: [...parentPath], entry: { ...entry } });
+    }
+    if (!saveFsExtras(extras)) return false;
+    Cloud()?.scheduleSave?.();
+    return true;
+  }
+
+  function removeMediaExtrasForPath(rootKey) {
+    const imgs = loadImgExtras().filter(
+      (item) => !pathMatchesOrUnder(pathKey([...(item.parentPath || []), item.name]), rootKey)
+    );
+    if (imgs.length !== loadImgExtras().length) saveImgExtras(imgs);
+
+    const audio = loadAudioExtras().filter(
+      (item) => !pathMatchesOrUnder(pathKey([...(item.parentPath || []), item.name]), rootKey)
+    );
+    if (audio.length !== loadAudioExtras().length) saveAudioExtras(audio);
+
+    if (rootKey === "Photos" || rootKey.startsWith("Photos/")) {
+      const photos = loadPhotosExtra().filter(
+        (pic) => !pathMatchesOrUnder(pathKey(["Photos", pic.name]), rootKey)
+      );
+      if (photos.length !== loadPhotosExtra().length) savePhotosExtra(photos);
+    }
+  }
+
+  function deleteFsEntry(target) {
+    const fullPath = target?.path;
+    if (!fullPath?.length) return false;
+    const name = fullPath[fullPath.length - 1];
+    const parentPath = fullPath.slice(0, -1);
+    const parent = resolvePath(parentPath)?.node;
+    if (!parent?.children?.[name]) return false;
+    if (!window.confirm(`Delete "${name}"?`)) return false;
+
+    const fullKey = pathKey(fullPath);
+    const parentKey = pathKey(parentPath);
+    delete parent.children[name];
+
+    const extras = loadFsExtras();
+    const hadUserEntry = extras.some(
+      (item) => !item.deleted && pathKey(item.parentPath || []) === parentKey && item.entry?.name === name
+    );
+    const nextExtras = extras.filter((item) => {
+      if (item.deleted) {
+        const ik = pathKey([...(item.parentPath || []), item.name]);
+        return !pathMatchesOrUnder(ik, fullKey);
+      }
+      if (!item.parentPath || !item.entry?.name) return true;
+      const ik = pathKey([...item.parentPath, item.entry.name]);
+      return !pathMatchesOrUnder(ik, fullKey);
+    });
+    if (!hadUserEntry) nextExtras.push({ parentPath: [...parentPath], deleted: true, name });
+    saveFsExtras(nextExtras);
+
+    removeMediaExtrasForPath(fullKey);
+
+    const icons = loadBatIcons();
+    let iconsChanged = false;
+    for (const key of Object.keys(icons)) {
+      if (pathMatchesOrUnder(key, fullKey)) {
+        delete icons[key];
+        iconsChanged = true;
+      }
+    }
+    if (iconsChanged) saveBatIcons(icons);
+
+    const before = desktopShortcuts.length;
+    desktopShortcuts = desktopShortcuts.filter((sc) => {
+      if (!sc.path?.length) return true;
+      return !pathMatchesOrUnder(pathKey(sc.path), fullKey);
+    });
+    if (desktopShortcuts.length !== before) {
+      saveDesktopShortcuts(desktopShortcuts);
+      renderDesktopIcons();
+    }
+
+    for (const id of [...openWindows.keys()]) {
+      if (!id.startsWith("folder:")) continue;
+      const folderPath = id.slice(7);
+      if (folderPath === fullKey || folderPath.startsWith(`${fullKey}/`)) destroyWindow(id);
+    }
+
+    refreshOpenFolder(parentPath);
+    Cloud()?.scheduleSave?.();
+    return true;
   }
 
   function loadPhotosExtra() {
@@ -2062,7 +2220,8 @@
     parent.children[entry.name] = entry;
     const extras = loadFsExtras();
     extras.push({ parentPath: [...parentPath], entry: toStore });
-    saveFsExtras(extras);
+    if (!saveFsExtras(extras)) return null;
+    Cloud()?.scheduleSave?.();
     return entry;
   }
 
@@ -2114,11 +2273,11 @@
   }
 
   function saveAudioExtras(list) {
-    try {
-      localStorage.setItem(AUDIO_EXTRAS_KEY, JSON.stringify(list));
-    } catch (_) {
-      /* ignore */
+    if (!trySetLocalStorage(AUDIO_EXTRAS_KEY, JSON.stringify(list))) {
+      alertStorageFull("save audio");
+      return false;
     }
+    return true;
   }
 
   function applyAudioExtras() {
@@ -2138,6 +2297,7 @@
 
   const STORE_INSTALLED_KEY = "archive-store-installed";
   const STORE_CONFIGS_KEY = "archive-store-configs";
+  const STORE_FOLDER_PATHS_KEY = "archive-store-folder-paths";
 
   function readStoreInstalled() {
     try {
@@ -2173,6 +2333,138 @@
     } catch (_) {
       /* ignore */
     }
+  }
+
+  function readStoreFolderPaths() {
+    try {
+      const raw = localStorage.getItem(STORE_FOLDER_PATHS_KEY);
+      const map = raw ? JSON.parse(raw) : {};
+      return map && typeof map === "object" ? map : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeStoreFolderPaths(map) {
+    try {
+      localStorage.setItem(STORE_FOLDER_PATHS_KEY, JSON.stringify(map));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function getStoreGameFolderName(gameId) {
+    const game = getStoreGames().find((g) => g.id === gameId);
+    if (!game) return "";
+    const paths = readStoreFolderPaths();
+    return paths[gameId] || game.folder;
+  }
+
+  function findInstalledStoreGameFolder(gameId) {
+    const games = FS.root.children.Games?.children;
+    if (!games) return "";
+    const preferred = getStoreGameFolderName(gameId);
+    if (preferred && games[preferred]) return preferred;
+    const game = getStoreGames().find((g) => g.id === gameId);
+    if (game?.folder && games[game.folder]) return game.folder;
+    for (const [name, node] of Object.entries(games)) {
+      if (node?.type !== "folder") continue;
+      const html = findHtmlInFolder(["Games", name]);
+      if (html && game && html.body === game.html) return name;
+    }
+    return preferred || game?.folder || "";
+  }
+
+  function inferStoreGameId(folderPath) {
+    const name = String(folderPath[folderPath.length - 1] || "").toLowerCase();
+    const key = pathKey(folderPath).toLowerCase();
+    for (const game of getStoreGames()) {
+      const folder = getStoreGameFolderName(game.id).toLowerCase();
+      if (!folder) continue;
+      if (name === folder || name === game.id || name.includes(game.id) || folder.includes(name)) {
+        return game.id;
+      }
+      if (key.endsWith(`/${folder}`) || key.endsWith(`/${game.id}`)) return game.id;
+    }
+    return "";
+  }
+
+  function inferAppIdFromFolder(folderPath) {
+    const name = String(folderPath[folderPath.length - 1] || "").toLowerCase();
+    const key = pathKey(folderPath).toLowerCase();
+    for (const app of INSTALLABLE_APPS) {
+      const folder = String(app.folder || "").toLowerCase();
+      if (!folder) continue;
+      if (name === folder || key.endsWith(`/${folder}`)) return app.id;
+      if (name.includes(folder) || folder.includes(name)) return app.id;
+    }
+    if (/lightning|lightn|bolt/i.test(name)) return "lightning";
+    if (/pixel\s*paint|pixelpaint/i.test(name)) return "pixel-paint";
+    return "";
+  }
+
+  function findBatInFolder(folderPath) {
+    const node = resolvePath(folderPath)?.node;
+    if (!node?.children) return null;
+    const bats = Object.values(node.children).filter((e) => e.type === "bat");
+    if (!bats.length) return null;
+    if (bats.length === 1) return bats[0];
+    return (
+      bats.find((b) => b.app) ||
+      bats.find((b) => /^run/i.test(b.name || "")) ||
+      bats[0]
+    );
+  }
+
+  function storeGameHtmlEntry(gameId) {
+    const game = getStoreGames().find((g) => g.id === gameId);
+    if (!game) return null;
+    return { type: "txt", name: "index.html", body: game.html };
+  }
+
+  function resolveBatLaunch(entry, folderPath) {
+    const path = Array.isArray(folderPath) ? [...folderPath] : [];
+    let appId = entry?.app || "";
+
+    if (appId.startsWith("store:")) {
+      const gameId = appId.slice(6);
+      const htmlEntry = storeGameHtmlEntry(gameId);
+      if (htmlEntry) return { mode: "html", htmlEntry };
+    }
+
+    if (!appId) {
+      const folderBat = findBatInFolder(path);
+      if (folderBat?.app) appId = folderBat.app;
+    }
+    if (!appId) appId = inferAppIdFromFolder(path);
+
+    if (appId && !appId.startsWith("store:")) {
+      return { mode: "app", appId };
+    }
+
+    let htmlEntry = null;
+    if (entry?.html) {
+      htmlEntry = resolvePath([...path, entry.html])?.node || null;
+    }
+    if (!htmlEntry) htmlEntry = findHtmlInFolder(path);
+
+    const storeGameId = inferStoreGameId(path);
+    if (!htmlEntry && storeGameId) {
+      htmlEntry = storeGameHtmlEntry(storeGameId);
+    }
+
+    if (htmlEntry) return { mode: "html", htmlEntry };
+
+    return { mode: "none" };
+  }
+
+  function folderHasLauncher(folderPath) {
+    return !!(
+      findBatInFolder(folderPath) ||
+      findHtmlInFolder(folderPath) ||
+      inferAppIdFromFolder(folderPath) ||
+      inferStoreGameId(folderPath)
+    );
   }
 
   function storeConfigBody(gameId, fallback) {
@@ -2239,30 +2531,51 @@
     }
     const games = FS.root.children.Games;
     if (!games.children) games.children = {};
-    const prevCfg = games.children[game.folder]?.children?.["config.ini"]?.body;
+    const folderName = findInstalledStoreGameFolder(gameId) || game.folder;
+    const prevCfg = games.children[folderName]?.children?.["config.ini"]?.body;
     const configBody = storeConfigBody(gameId, prevCfg || game.config);
-    games.children[game.folder] = {
-      type: "folder",
-      name: game.folder,
-      children: {
-        "run.bat": { type: "bat", name: "run.bat" },
-        "config.ini": {
-          type: "ini",
-          name: "config.ini",
-          body: configBody,
-        },
-        "index.html": {
-          type: "txt",
-          name: "index.html",
-          body: game.html,
-        },
-        "readme.txt": {
-          type: "txt",
-          name: "readme.txt",
-          body: `${game.name}\r\n\r\nEdit config.ini, then double-click run.bat.\r\n`,
-        },
+    const launcherBat = { type: "bat", name: "run.bat", app: `store:${gameId}` };
+    const required = {
+      "run.bat": launcherBat,
+      "config.ini": {
+        type: "ini",
+        name: "config.ini",
+        body: configBody,
+      },
+      "index.html": {
+        type: "txt",
+        name: "index.html",
+        body: game.html,
+      },
+      "readme.txt": {
+        type: "txt",
+        name: "readme.txt",
+        body: `${game.name}\r\n\r\nEdit config.ini, then double-click run.bat.\r\n`,
       },
     };
+
+    const existing = games.children[folderName];
+    if (existing?.type === "folder") {
+      if (!existing.children) existing.children = {};
+      existing.name = folderName;
+      for (const [fname, node] of Object.entries(required)) {
+        if (!existing.children[fname]) existing.children[fname] = { ...node };
+        else if (fname === "run.bat" && !existing.children[fname].app) {
+          existing.children[fname].app = launcherBat.app;
+        }
+      }
+    } else {
+      games.children[folderName] = {
+        type: "folder",
+        name: folderName,
+        children: { ...required },
+      };
+    }
+
+    const paths = readStoreFolderPaths();
+    paths[gameId] = folderName;
+    writeStoreFolderPaths(paths);
+
     const installed = readStoreInstalled();
     if (!installed.includes(gameId)) {
       installed.push(gameId);
@@ -2422,7 +2735,8 @@
       src: dataUrl,
       body: entry.body,
     });
-    saveAudioExtras(list);
+    if (!saveAudioExtras(list)) return null;
+    Cloud()?.scheduleSave?.();
     return entry;
   }
 
@@ -2622,15 +2936,11 @@
     area.value = entry.body || "";
     wrap.querySelector(".ini-save").addEventListener("click", () => {
       entry.body = area.value;
-      const extras = loadFsExtras();
-      let changed = false;
-      for (const item of extras) {
-        if (item.entry?.name === entry.name && item.entry.type === entry.type) {
-          item.entry.body = entry.body;
-          changed = true;
-        }
+      const parentPath = Array.isArray(entry._folderPath) ? [...entry._folderPath] : [];
+      if (!upsertFsEntry(parentPath, entry)) {
+        status.textContent = "Save failed — storage full.";
+        return;
       }
-      if (changed) saveFsExtras(extras);
       if (entry === getPaintConfigEntry() || (entry.name === "config.ini" && /grid_transparency/i.test(entry.body))) {
         try {
           localStorage.setItem(PAINT_CONFIG_KEY, entry.body);
@@ -2703,6 +3013,10 @@
       } catch (_) {
         /* ignore */
       }
+      const parentPath = Array.isArray(entry._folderPath)
+        ? [...entry._folderPath]
+        : ["Tools", "Text Generator"];
+      upsertFsEntry(parentPath, entry);
       if (typeof window.applyTextGenConfig === "function") {
         window.applyTextGenConfig(entry.body);
       }
@@ -3121,12 +3435,15 @@
     const openDoc = ctx.querySelector('[data-ctx="open-doc"]');
     const openTab = ctx.querySelector('[data-ctx="open-tab"]');
     const renameBtn = ctx.querySelector('[data-ctx="rename"]');
+    const deleteBtn = ctx.querySelector('[data-ctx="delete"]');
     const isBat = target?.kind === "bat";
     const isFolderBg = target?.kind === "folder-bg";
     const isDoc = target?.kind === "doc";
     const isFolder = target?.kind === "folder";
     const isImg = target?.kind === "img";
-    const canRename = isBat || isDoc || isFolder || isImg;
+    const isAudio = target?.kind === "audio";
+    const canRename = isBat || isDoc || isFolder || isImg || isAudio;
+    const canDelete = canRename;
     const canTab = isDoc && looksLikeHtml(target?.entry);
     if (customise) customise.hidden = !isBat;
     if (newFolder) newFolder.hidden = !isFolderBg;
@@ -3137,7 +3454,8 @@
     if (openDoc) openDoc.hidden = !isDoc;
     if (openTab) openTab.hidden = !canTab;
     if (renameBtn) renameBtn.hidden = !canRename;
-    if (!isBat && !isFolderBg && !isDoc && !isFolder && !isImg) {
+    if (deleteBtn) deleteBtn.hidden = !canDelete;
+    if (!isBat && !isFolderBg && !isDoc && !isFolder && !isImg && !isAudio) {
       ctx.hidden = true;
       return;
     }
@@ -3254,7 +3572,21 @@
       if (pChanged) savePhotosExtra(photos);
     }
 
+    if (parentPath.length === 1 && parentPath[0] === "Games") {
+      const paths = readStoreFolderPaths();
+      let pathsChanged = false;
+      for (const gameId of readStoreInstalled()) {
+        const current = paths[gameId] || getStoreGames().find((g) => g.id === gameId)?.folder;
+        if (current === oldName) {
+          paths[gameId] = clean;
+          pathsChanged = true;
+        }
+      }
+      if (pathsChanged) writeStoreFolderPaths(paths);
+    }
+
     refreshOpenFolder(parentPath);
+    Cloud()?.scheduleSave?.();
     return true;
   }
 
@@ -3708,6 +4040,18 @@
           });
         }
 
+        if (entry.type === "audio") {
+          btn.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showDeskCtx(e.clientX, e.clientY, {
+              kind: "audio",
+              path: fullPath,
+              entry,
+            });
+          });
+        }
+
         let clicks = 0;
         let clickTimer = 0;
         btn.addEventListener("click", () => {
@@ -3717,7 +4061,20 @@
           window.clearTimeout(clickTimer);
           clickTimer = window.setTimeout(() => {
             if (clicks >= 2) {
-              if (entry.type === "folder") openFolderWindow(fullPath);
+              if (entry.type === "folder") {
+                if (folderHasLauncher(fullPath)) {
+                  const bat = findBatInFolder(fullPath);
+                  const launcher = bat || {
+                    type: "bat",
+                    name: "run.bat",
+                  };
+                  launcher._folderPath = [...fullPath];
+                  launcher._pathKey = pathKey([...fullPath, launcher.name]);
+                  runBat(launcher);
+                } else {
+                  openFolderWindow(fullPath);
+                }
+              }
               else if (entry.type === "bat") {
                 entry._folderPath = [...pathParts];
                 entry._pathKey = key;
@@ -3773,18 +4130,24 @@
   ];
 
   function runBat(entry) {
-    const appId = entry.app;
     const folderPath = entry._folderPath
       ? [...entry._folderPath]
       : entry._pathKey
         ? entry._pathKey.split("/").slice(0, -1)
         : [];
+    const launch = resolveBatLaunch(entry, folderPath);
 
-    // Folder apps: run.bat + HTML in the same folder
-    if (!appId) {
-      runHtmlBat(entry, folderPath);
+    if (launch.mode === "html") {
+      runHtmlBat(entry, folderPath, launch.htmlEntry);
       return;
     }
+    if (launch.mode !== "app") {
+      window.alert("Could not launch — no app or game found in this folder.");
+      return;
+    }
+
+    const appId = launch.appId;
+    entry.app = appId;
 
     if (appId === "terminal") {
       openTerminalApp();
@@ -3902,12 +4265,16 @@
     );
   }
 
-  function runHtmlBat(entry, folderPath) {
-    let htmlEntry = null;
-    if (entry.html) {
+  function runHtmlBat(entry, folderPath, presetHtml = null) {
+    let htmlEntry = presetHtml;
+    if (!htmlEntry && entry.html) {
       htmlEntry = resolvePath([...folderPath, entry.html])?.node || null;
     }
     if (!htmlEntry) htmlEntry = findHtmlInFolder(folderPath);
+    if (!htmlEntry) {
+      const storeGameId = inferStoreGameId(folderPath);
+      if (storeGameId) htmlEntry = storeGameHtmlEntry(storeGameId);
+    }
     if (!htmlEntry) {
       window.alert("No HTML file found in this folder to run.");
       return;
@@ -6475,6 +6842,8 @@
       openInTab(target.entry);
     } else if (act === "rename") {
       promptRename(target);
+    } else if (act === "delete") {
+      deleteFsEntry(target);
     }
   });
 
@@ -6617,11 +6986,6 @@
     deleteApp(id);
   });
 
-  document.getElementById("factoryResetBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openFactoryReset();
-  });
-
   document.getElementById("factoryResetBack")?.addEventListener("click", closeFactoryReset);
 
   document.getElementById("factoryResetConfirm")?.addEventListener("click", async () => {
@@ -6659,4 +7023,12 @@
   window.setInterval(() => {
     if (phase === "desktop") Cloud()?.scheduleSave?.();
   }, 20000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") Cloud()?.flushSave?.();
+  });
+
+  window.addEventListener("pagehide", () => {
+    Cloud()?.flushSave?.();
+  });
 })();
