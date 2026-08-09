@@ -408,7 +408,7 @@
     }
     if (hint) {
       hint.textContent = hasAccount
-        ? "Account and all data erased. Click again to confirm."
+        ? "This account only — others stay on this PC. Click again to confirm."
         : "Click once more to confirm";
     }
     screen.hidden = false;
@@ -436,15 +436,18 @@
     closeFactoryReset();
     const cloud = Cloud();
     const pid = cloud?.getSession?.();
+
     if (pid && cloud?.deleteAccount) {
       try {
         await cloud.deleteAccount(pid);
       } catch (err) {
         console.warn("deleteAccount failed:", err);
       }
-    } else {
-      cloud?.clearSession?.();
+      window.location.reload();
+      return;
     }
+
+    cloud?.clearSession?.();
     try {
       const keys = [];
       for (let i = 0; i < localStorage.length; i += 1) {
@@ -452,7 +455,6 @@
         if (k && k.startsWith("archive-")) keys.push(k);
       }
       keys.forEach((k) => localStorage.removeItem(k));
-      // Clear any leftover known keys
       [
         CONFIG_STORAGE_KEY,
         PAINT_CONFIG_KEY,
