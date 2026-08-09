@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 5;
+  const APP_VERSION = 6;
 
   const TIME_FONTS = [
     "Press Start 2P",
@@ -1744,6 +1744,169 @@
               type: "img",
               name: "drive.bmp",
               src: "assets/storage-icon.png",
+            },
+          },
+        },
+        Help: {
+          type: "folder",
+          name: "Help",
+          children: {
+            "Getting Started.txt": {
+              type: "txt",
+              name: "Getting Started.txt",
+              body:
+                "GETTING STARTED\r\n===============\r\n\r\n" +
+                "1. Press SPACE on the boot screen.\r\n" +
+                "2. Log in with your username and password.\r\n" +
+                "   New accounts start blank.\r\n" +
+                "3. Double-click My Files on the desktop.\r\n" +
+                "4. Open Tools, install apps from the App Store,\r\n" +
+                "   then double-click run.bat in each folder.\r\n" +
+                "5. Read the other documents in this Help folder\r\n" +
+                "   for step-by-step guides.\r\n\r\n" +
+                "Start menu: Storage, App Store, My Files, volume,\r\n" +
+                "and Sign out.\r\n",
+            },
+            "My Files.txt": {
+              type: "txt",
+              name: "My Files.txt",
+              body:
+                "MY FILES\r\n========\r\n\r\n" +
+                "Your virtual hard drive. Folders include Tools,\r\n" +
+                "Games, Photos, Music, and Help.\r\n\r\n" +
+                "Right-click empty space: New Folder, upload files.\r\n" +
+                "Drag files from your PC onto a folder window.\r\n" +
+                "Double-click folders to open. Double-click run.bat\r\n" +
+                "to launch programs.\r\n",
+            },
+            "App Store.txt": {
+              type: "txt",
+              name: "App Store.txt",
+              body:
+                "APP STORE\r\n=========\r\n\r\n" +
+                "Start menu -> App Store, or Tools folder.\r\n\r\n" +
+                "Click Install to add an app to My Files.\r\n" +
+                "Then open its folder and double-click run.bat.\r\n" +
+                "Delete removes the app and frees memory.\r\n",
+            },
+            "Profile.txt": {
+              type: "txt",
+              name: "Profile.txt",
+              body:
+                "PROFILE\r\n=======\r\n\r\n" +
+                "Tools -> Profile -> run.bat\r\n\r\n" +
+                "Set your picture, display name, pronouns, and bio.\r\n" +
+                "Add up to 3 story photos with descriptions.\r\n" +
+                "Click Save. Your picture shows on Social Media\r\n" +
+                "and the Profile desktop icon.\r\n",
+            },
+            "Social Media.txt": {
+              type: "txt",
+              name: "Social Media.txt",
+              body:
+                "SOCIAL MEDIA\r\n============\r\n\r\n" +
+                "Explore accounts, send friend requests, and chat.\r\n\r\n" +
+                "Click a profile to like, view stories, and comment.\r\n" +
+                "Friends tab: accept requests and open chats.\r\n" +
+                "Use the paperclip in chat to send photos or GIFs.\r\n" +
+                "You'll get a mail popup for messages and accepts.\r\n",
+            },
+            "Music Player.txt": {
+              type: "txt",
+              name: "Music Player.txt",
+              body:
+                "MUSIC PLAYER\r\n============\r\n\r\n" +
+                "Upload MP3s to My Files -> Music, or use built-in\r\n" +
+                "tracks in Relaxed music, Loud/phonk, and Jackson.\r\n\r\n" +
+                "Add songs to your playlist, use Back / Pause / Skip.\r\n" +
+                "Minimize the window to keep listening.\r\n",
+            },
+            "Terminal.txt": {
+              type: "txt",
+              name: "Terminal.txt",
+              body:
+                "TERMINAL\r\n========\r\n\r\n" +
+                "Tools -> Terminal -> run.bat\r\n\r\n" +
+                "Type help for commands: dir, cd, open apps,\r\n" +
+                "ver, date, fortune, credits, and more.\r\n" +
+                "Example: open wiki, open social, open files\r\n",
+            },
+            "Wikipedia.txt": {
+              type: "txt",
+              name: "Wikipedia.txt",
+              body:
+                "WIKIPEDIA\r\n=========\r\n\r\n" +
+                "Tools -> Wikipedia -> run.bat\r\n\r\n" +
+                "Browse Wikipedia in a window. Use Home, Back,\r\n" +
+                "Forward, and the address bar. Type a page name\r\n" +
+                "or URL and click Go. Use -> to open in browser\r\n" +
+                "if the page does not load inside the app.\r\n",
+            },
+            "Text Generator.txt": {
+              type: "txt",
+              name: "Text Generator.txt",
+              body:
+                "TEXT GENERATOR\r\n==============\r\n\r\n" +
+                "Tools -> Text Generator -> run.bat\r\n\r\n" +
+                "Type text and tweak size, fonts, and colors.\r\n" +
+                "Edit config.ini in the same folder for defaults.\r\n",
+            },
+            "Background Changer.txt": {
+              type: "txt",
+              name: "Background Changer.txt",
+              body:
+                "BACKGROUND CHANGER\r\n==================\r\n\r\n" +
+                "Pick an image or GIF from Photos as wallpaper.\r\n" +
+                "Tools -> Background Changer -> Browse.\r\n" +
+                "Reset returns the default desktop background.\r\n",
+            },
+            "Desktop Pet.txt": {
+              type: "txt",
+              name: "Desktop Pet.txt",
+              body:
+                "DESKTOP PET\r\n===========\r\n\r\n" +
+                "A rolling ball on your desktop.\r\n" +
+                "Right-click the pet: Movement -> Follow,\r\n" +
+                "Wander, or Idle.\r\n",
+            },
+            "Uploading Files.txt": {
+              type: "txt",
+              name: "Uploading Files.txt",
+              body:
+                "UPLOADING FILES\r\n===============\r\n\r\n" +
+                "Drag images, audio, or text from your PC onto\r\n" +
+                "a My Files folder window.\r\n\r\n" +
+                "Or right-click a folder -> Upload files.\r\n" +
+                "Images go to Photos, audio to Music.\r\n" +
+                "If save fails, delete old files or use smaller ones.\r\n",
+            },
+            "Pixel Paint.txt": {
+              type: "txt",
+              name: "Pixel Paint.txt",
+              body:
+                "PIXEL PAINT\r\n===========\r\n\r\n" +
+                "Games -> Pixel Paint -> run.bat\r\n\r\n" +
+                "Draw pixel art. Save As saves to Photos.\r\n" +
+                "Import loads an image from My Files.\r\n",
+            },
+            "Lightning FX.txt": {
+              type: "txt",
+              name: "Lightning FX.txt",
+              body:
+                "LIGHTNING FX\r\n============\r\n\r\n" +
+                "Games -> Lightning FX -> run.bat\r\n\r\n" +
+                "Paint terrain on the canvas, then strike with\r\n" +
+                "lightning. Edit config.ini for options.\r\n",
+            },
+            "Volume and Mail.txt": {
+              type: "txt",
+              name: "Volume and Mail.txt",
+              body:
+                "VOLUME AND MAIL\r\n===============\r\n\r\n" +
+                "Start menu: speaker icon mutes or unmutes.\r\n" +
+                "Slider changes volume for sounds and music.\r\n\r\n" +
+                "A You've got mail popup appears for new chat\r\n" +
+                "messages and friend request accepts.\r\n",
             },
           },
         },
